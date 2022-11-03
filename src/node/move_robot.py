@@ -49,6 +49,6 @@ while not rospy.is_shutdown():
     while True:
         move = Twist()
         # move.linear.x = 1
-        move.angular.z = 0.3
+        move.angular.z = 0.6
         pub.publish(move)
     rate.sleep()
