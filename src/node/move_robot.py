@@ -46,9 +46,8 @@ def updateCorrVal(data):
 rate = rospy.Rate(2)
 
 while not rospy.is_shutdown():
-    while True:
-        move = Twist()
-        # move.linear.x = 1
-        move.angular.z = 0.3
-        pub.publish(move)
+    move = Twist()
+    # move.linear.x = 1
+    move.angular.z = 0.3
+    pub.publish(move)
     rate.sleep()
