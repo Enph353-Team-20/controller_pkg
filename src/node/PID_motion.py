@@ -19,7 +19,7 @@ xWidth = 800
 centroidX = 300
 corrVal = 50.0
 
-threshold_val = 220
+threshold_val = 150
 
 
 # create class to run the camera/movement loop
@@ -46,11 +46,12 @@ class image_converter:
         """
         try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "mono8")
+            cv_colour = self.bridge.imgmsg_to_cv2(data, "bgr8")
         except CvBridgeError as e:
             print(e)
 
-        # blur image to reduce noise
-        cv_image = cv2.GaussianBlur(cv_image,(3,3),10)
+        # trying something out here
+        cv_image = cv_colour[:,:,0]
 
         # testing for threshold
         ret, thresh_img = cv2.threshold(cv_image, threshold_val, 255, cv2.THRESH_BINARY_INV)
@@ -62,29 +63,30 @@ class image_converter:
         # variable for which height to partition the screen into
         look_height = int(0.7*image_height)
         above_look = int(0.6*image_height)
+        bottom_look = int(1*image_height)
 
 
         # find the center of the line
-        cXR = self.findLineCentroidX(cv_image, (look_height, -1),(int(image_width/2),int(image_width)-1))
-        cXL = self.findLineCentroidX(cv_image, (look_height, -1), (0,int(image_width/2)))
+        cXR = self.findLineCentroidX(cv_image, (look_height, bottom_look),(int(image_width/2),int(image_width)-1-200))
+        cXL = self.findLineCentroidX(cv_image, (look_height, bottom_look), (200,int(image_width/2)))
         if cXR == -1:
             cXR = self.cXR_last
         else:
             self.cXR_last = cXR
         if cXL == -1:
-            cXL = self.cXL_last
+            cXR = self.cXL_last
         else:
             self.cXL_last = cXL
 
         # find the center of the line for the screen above
-        cXRa = self.findLineCentroidX(cv_image, (above_look, look_height),(int(image_width/2),int(image_width)-1))
-        cXLa = self.findLineCentroidX(cv_image, (above_look, look_height), (0,int(image_width/2)))
+        cXRa = self.findLineCentroidX(cv_image, (above_look, look_height),(int(image_width/2),int(image_width)-1-200))
+        cXLa = self.findLineCentroidX(cv_image, (above_look, look_height), (200,int(image_width/2)))
         if cXRa == -1:
-            cXRa = self.cXRa_last
+            cXRa = 640
         else:
             self.cXRa_last = cXRa
         if cXLa == -1:
-            cXLa = self.cXLa_last
+            cXLa = 640
         else:
             self.cXLa_last = cXLa
 
@@ -92,32 +94,38 @@ class image_converter:
         slopeR = cXRa-cXR
         slopeL = cXLa-cXL
 
+
         # make a circle on the center of the image
-        cv2.circle(thresh_img, (int((cXR+cXL)/2), 700), 25, (0,255,0), -1)
+        cv2.circle(thresh_img, (cXR, 300), 16, (0,255,0), -1)
+        cv2.circle(thresh_img, (cXL, 300), 16, (0,255,0), -1)
+        cv2.circle(thresh_img, (int((cXR+cXL)/2), 300), 25, (0,255,0), -1)
 
         # create the move object
         move = Twist()
 
         # attempt at a PID
         angMax = 4
-        move.linear.x = 0.2
+        move.linear.x = 0.15
 
         # move.linear.x = 0
         # move.angular.z = 0 # for reseting the robot
 
-        slope_turn_constant = 10
+        slope_turn_constant = 30
 
 
         if slopeL < slope_turn_constant and slopeR < -slope_turn_constant:
             # left line go bye bye (steer with right)
             move.angular.z = (1-4*(cXR-640)/image_width)*angMax
+            cv2.putText(img=thresh_img, text="Right", org=(1200, 20), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(0, 255, 0),thickness=1)
         elif slopeL > slope_turn_constant and slopeR > -slope_turn_constant:
             # right line go bye bye (steer with left)
-            move.angular.z = (1-4*cXL/image_width)*angMax
+            move.angular.z = (1-4*(cXL)/image_width)*angMax
+            cv2.putText(img=thresh_img, text="Left", org=(20, 20), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(0, 255, 0),thickness=1)
         else:
             # both lines in sight
             cX = int((cXR+cXL)/2)
             move.angular.z = (1-2*cX/image_width)*angMax
+            cv2.putText(img=thresh_img, text="Both", org=(600, 20), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(0, 255, 0),thickness=1)
 
         
         
@@ -128,9 +136,14 @@ class image_converter:
         except CvBridgeError as e:
             print(e)
 
+        # blur image to reduce noise
+        thresh_img = cv2.GaussianBlur(thresh_img,(5,5),0)
+
+        # channel = 0
+        # ret_col, thresh_img_col = cv2.threshold(cv_colour[:,:,channel], threshold_val, 255, cv2.THRESH_BINARY_INV)
 
         cv2.imshow("Image window", thresh_img)
-        # cv2.imshow("Image window", cv_image)
+        # cv2.imshow("Image window", thresh_img_col)
         cv2.waitKey(3)
 
     # function to find the center of the line
@@ -146,6 +159,9 @@ class image_converter:
         cropped_img = img[y_range[0]:y_range[1],x_range[0]:x_range[1]]
 
         ret, thresh_img = cv2.threshold(cropped_img, threshold_val, 255, cv2.THRESH_BINARY)
+
+        # blur image to reduce noise
+        thresh_img = cv2.GaussianBlur(thresh_img,(5,5),0)
 
         M = cv2.moments(thresh_img)
         try:
