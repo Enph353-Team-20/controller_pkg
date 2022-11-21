@@ -53,7 +53,7 @@ class SiftProcessor():
         Args:
             image (np.array(int)): Single-channel cv2 image
         """
-        image = cv2.resize(image, (int(image.shape[1]*0.5), int(image.shape[0]*0.5)))
+        # image = cv2.resize(image, (int(image.shape[1]*0.5), int(image.shape[0]*0.5)))
         # image = image[360:,:]
         self.input = image
 
@@ -72,26 +72,28 @@ class SiftProcessor():
                 good_points.append(m)
         self.output = good_points 
 
+        modified_img = self.input.copy()
         if self.debug_flags["template_kp"] == True:
             self.debug_imgs["template_kp"] = cv2.drawKeypoints(self.templates[0], self.tmplt_kp[0], self.templates[0])
         
         if (self.debug_flags["input_kp"] == True):
-            self.debug_imgs["input_kp"] = cv2.drawKeypoints(self.input, self.input_kp, self.input)
+            self.debug_imgs["input_kp"] = cv2.drawKeypoints(modified_img, self.input_kp, modified_img)
         if self.debug_flags["homogr"] == True:
             self.debug_imgs["homogr"] = self.draw_homography(self.input_kp, self.tmplt_kp[0], good_points)
         if self.debug_flags["matches"] == True:
-            self.debug_imgs["matches"] = cv2.drawMatches(self.templates[0], self.tmplt_kp[0], self.input, self.input_kp, good_points, self.input)
+            self.debug_imgs["matches"] = cv2.drawMatches(self.templates[0], self.tmplt_kp[0], modified_img, self.input_kp, good_points, modified_img)
         self.input = None
 
 
     def draw_homography(self, input_kp, tmplt_kp, good_points):
-        modified_img = self.input
+        modified_img = self.input.copy()
 
 
         if len(good_points) >= 1:
             avg_x, avg_y = self.centroid_of_points()
             cv2.circle(modified_img, (avg_x, avg_y), 7, (0,255,0), -1)
-        
+            
+
 
         if len(good_points) > 3:
             # Extract position of points and reformat array
@@ -104,9 +106,9 @@ class SiftProcessor():
             # Perspective transform
             s = self.templates[0].shape
             pts = np.float32([[0, 0], [0, s[0]], [s[1], s[0]], [s[1], 0]]).reshape(-1, 1, 2)
-            dst = cv2.perspectiveTransform(pts, matrix)
-
-            modified_img = cv2.polylines(modified_img, [np.int32(dst)], True, (255, 0, 0), 3)
+            if (matrix is not None):
+                dst = cv2.perspectiveTransform(pts, matrix)
+                modified_img = cv2.polylines(modified_img, [np.int32(dst)], True, (255, 0, 0), 3)
         return modified_img
 
     def centroid_of_points(self):
