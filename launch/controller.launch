@@ -1,15 +1,14 @@
 
 <launch>
-   <!-- My Package launch file -->
    <node pkg="controller_pkg"
-         type="move_robot.py"
-         name="move_robot" 
+         type="PID_motion.py"
+         name="PID_motion" 
          output="screen">
    </node>
 
-   <!-- <node pkg="enph353_ros_lab"
-         type="calculate_centroid.py"
-         name="calculate_centroid" 
+   <node pkg="controller_pkg"
+         type="scoring.py"
+         name="scoring_manager" 
          output="screen">
-   </node> -->
+   </node>
 </launch>
