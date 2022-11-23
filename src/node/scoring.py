@@ -4,6 +4,7 @@ import roslib
 import sys
 import rospy
 from std_msgs.msg import String
+import time
 
 
 def main(args):
@@ -13,6 +14,14 @@ def main(args):
     try:
         msg = str('Team20,silvertip,0,AA00')
         pub.publish(msg)
+        start_time = time.time()
+
+        while (time.time() < start_time + 30.0):
+            pass
+        
+        msg = str('Team20,silvertip,-1,AA00')
+        pub.publish(msg)
+
     except rospy.ROSInterruptException:
         print("Shutting down")
 
