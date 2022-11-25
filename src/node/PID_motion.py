@@ -27,6 +27,10 @@ class image_converter:
     cXL_last = 640
     cXRa_last = 640
     cXLa_last = 640
+    img_val_last = 97.8
+    detection_time = 0
+    start_time = time.time()
+    delay_time = 0
 
     # initiate the class
     def __init__(self):
@@ -36,8 +40,10 @@ class image_converter:
         # publish to movement
         self.cmd_pub = rospy.Publisher('/R1/cmd_vel', Twist, queue_size=1)
 
-        # state variables
+        # state variable
+        self.state = "turn left"
         self.crosswalk = False
+        self.pedestrian = False
 
     # the loop that will read from the camera and get the robot to move
     def callback(self,data):
@@ -46,9 +52,9 @@ class image_converter:
             data (Image): Image pulled from camera topic
         """
         try:
-            # cv_image = self.bridge.imgmsg_to_cv2(data, "mono8")
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
             hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+            gray = self.bridge.imgmsg_to_cv2(data, "mono8")
         except CvBridgeError as e:
             print(e)
 
@@ -70,40 +76,6 @@ class image_converter:
         above_look = int(0.7*image_height)
         bottom_look = int(1*image_height)
 
-
-        # find the center of the line
-        cXR = self.findLineCentroidX(cv_image, (look_height, bottom_look),(int(image_width/2)-200,int(image_width)-1))
-        cXL = self.findLineCentroidX(cv_image, (look_height, bottom_look), (200,int(image_width/2)))
-        if cXR == -1:
-            cXR = self.cXR_last
-        else:
-            self.cXR_last = cXR
-        if cXL == -1:
-            cXR = self.cXL_last
-        else:
-            self.cXL_last = cXL
-
-        # find the center of the line for the screen above
-        cXRa = self.findLineCentroidX(cv_image, (above_look, look_height),(int(image_width/2),int(image_width)-1-200))
-        cXLa = self.findLineCentroidX(cv_image, (above_look, look_height), (200,int(image_width/2)))
-        if cXRa == -1:
-            cXRa = 640
-        else:
-            self.cXRa_last = cXRa
-        if cXLa == -1:
-            cXLa = 640
-        else:
-            self.cXLa_last = cXLa
-
-        # find the difference between centroids in the upper and lower windows
-        slopeR = cXRa-cXR
-        slopeL = cXLa-cXL
-
-        # plot left and right centroids on the image
-        cv2.circle(thresh_img, (cXR, 300), 16, (255,255,255), -1)
-        cv2.circle(thresh_img, (cXL, 300), 16, (255,255,255), -1)
-        cv2.circle(thresh_img, (int((cXR+cXL)/2), 300), 25, (255,255,255), -1)
-
         # create the move object
         move = Twist()
 
@@ -111,25 +83,65 @@ class image_converter:
         angMax = 4
         move.linear.x = 0.2
 
-        # check for the red line
 
-        # filter for red
-        red_lower = np.array([0,200,0])
-        red_upper = np.array([6,255,255])
-        red_mask = cv2.inRange(hsv,red_lower,red_upper)
 
-        # stop if the crosswalk is there
-        red_center = self.findCentroidY(red_mask)
-        if red_center > 550:
-            self.crosswalk = True
-            move.angular.z = 0
-            move.linear.x = 0
-        
 
-        # constant to determine which line to follow (big impact on PID performance)
-        slope_turn_constant = 30
 
-        if self.crosswalk == False:
+        # state machine start
+
+        if self.state == "turn left":
+
+            # find left centroid
+            cXL = self.findLineCentroidX(cv_image, (look_height, bottom_look), (200,int(image_width/2)))
+            if cXL == -1:
+                cXL = self.cXL_last
+            else:
+                self.cXL_last = cXL
+
+            # PID steering with left line
+            move.angular.z = 2*(1-4*(cXL)/image_width)*angMax
+
+            if time.time() > self.start_time + 3:
+                self.state = "drive"
+
+        elif self.state == "drive":
+
+            # find the center of the line
+            cXR = self.findLineCentroidX(cv_image, (look_height, bottom_look),(int(image_width/2)-200,int(image_width)-1))
+            cXL = self.findLineCentroidX(cv_image, (look_height, bottom_look), (200,int(image_width/2)))
+            if cXR == -1:
+                cXR = self.cXR_last
+            else:
+                self.cXR_last = cXR
+            if cXL == -1:
+                cXL = self.cXL_last
+            else:
+                self.cXL_last = cXL
+
+            # find the center of the line for the screen above
+            cXRa = self.findLineCentroidX(cv_image, (above_look, look_height),(int(image_width/2),int(image_width)-1-200))
+            cXLa = self.findLineCentroidX(cv_image, (above_look, look_height), (200,int(image_width/2)))
+            if cXRa == -1:
+                cXRa = 640
+            else:
+                self.cXRa_last = cXRa
+            if cXLa == -1:
+                cXLa = 640
+            else:
+                self.cXLa_last = cXLa
+
+            # find the difference between centroids in the upper and lower windows
+            slopeR = cXRa-cXR
+            slopeL = cXLa-cXL
+
+            # plot left and right centroids on the image
+            cv2.circle(thresh_img, (cXR, 300), 16, (255,255,255), -1)
+            cv2.circle(thresh_img, (cXL, 300), 16, (255,255,255), -1)
+            cv2.circle(thresh_img, (int((cXR+cXL)/2), 300), 25, (255,255,255), -1)
+
+            # constant to determine which line to follow (big impact on PID performance)
+            slope_turn_constant = 30
+
             # determine which line to follow with PID
             if slopeL < slope_turn_constant and slopeR < -slope_turn_constant:
                 # left line go bye bye (steer with right)
@@ -144,6 +156,38 @@ class image_converter:
                 cX = int((cXR+cXL)/2)
                 move.angular.z = (1-2*cX/image_width)*angMax
                 cv2.putText(img=thresh_img, text="Both", org=(600, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+
+            # filter for red
+            red_lower = np.array([0,200,0])
+            red_upper = np.array([6,255,255])
+            red_mask = cv2.inRange(hsv,red_lower,red_upper)
+
+            # stop if the crosswalk is there
+            red_center = self.findCentroidY(red_mask)
+            if red_center > 550:
+                if time.time() > self.detection_time+3:
+                    self.state = "crosswalk"
+                    self.delay_time = time.time()
+
+
+        elif self.state == "crosswalk":
+            
+            # stop the car
+            move.angular.z = 0
+            move.linear.x = 0
+
+            # look for the pedestrian
+            error_val = 0.5
+            img_val = self.averageImageValue(gray,640,360,100)
+            if time.time()>self.delay_time+2:
+                if img_val > self.img_val_last+error_val or img_val<self.img_val_last-error_val:
+                    print("pedestrian")
+                    cv2.circle(thresh_img, (640, 400), 49, (255,255,255), -1)
+                    self.state = "drive"
+                    self.detection_time = time.time()
+            self.img_val_last = img_val
+
+        
         
         
         # publish the move object
@@ -152,9 +196,11 @@ class image_converter:
         except CvBridgeError as e:
             print(e)
 
+        # print current state to the screen
+        cv2.putText(img=thresh_img, text=self.state, org=(600, 50), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
 
         # display troubleshooting screen
-        cv2.imshow("Image window", red_mask)
+        cv2.imshow("Image window", thresh_img)
         cv2.waitKey(1)
 
 
@@ -201,6 +247,16 @@ class image_converter:
             cY = -1
 
         return cY
+
+    def averageImageValue(self, img, X, Y, size):
+
+        cropped_img = img[Y-size:Y+size,X-size:X+size]
+
+        # blur image to reduce noise
+        cropped_img = cv2.GaussianBlur(cropped_img,(1,1),0)
+
+        return np.mean(cropped_img)
+        
 
 
 
