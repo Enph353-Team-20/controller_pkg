@@ -35,8 +35,9 @@ class image_converter:
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
         # publish to movement
         self.cmd_pub = rospy.Publisher('/R1/cmd_vel', Twist, queue_size=1)
-        # # publish license plates
-        # self.plate_pub = rospy.Publisher('/license_plate', String, queue_size=1)
+
+        # state variables
+        self.crosswalk = False
 
     # the loop that will read from the camera and get the robot to move
     def callback(self,data):
@@ -110,23 +111,40 @@ class image_converter:
         angMax = 4
         move.linear.x = 0.2
 
-        # constant to determine which line to follow (big impact on PID performance)
-        slope_turn_constant = 20
+        # check for the red line
 
-        # determine which line to follow with PID
-        if slopeL < slope_turn_constant and slopeR < -slope_turn_constant:
-            # left line go bye bye (steer with right)
-            move.angular.z = 2*(1-4*(cXR-640)/image_width)*angMax
-            cv2.putText(img=thresh_img, text="Right", org=(1200, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
-        elif slopeL > slope_turn_constant and slopeR > -slope_turn_constant:
-            # right line go bye bye (steer with left)
-            move.angular.z = 2*(1-4*(cXL)/image_width)*angMax
-            cv2.putText(img=thresh_img, text="Left", org=(20, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
-        else:
-            # both lines in sight
-            cX = int((cXR+cXL)/2)
-            move.angular.z = (1-2*cX/image_width)*angMax
-            cv2.putText(img=thresh_img, text="Both", org=(600, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+        # filter for red
+        red_lower = np.array([0,200,0])
+        red_upper = np.array([6,255,255])
+        red_mask = cv2.inRange(hsv,red_lower,red_upper)
+
+        # stop if the crosswalk is there
+        red_center = self.findCentroidY(red_mask)
+        if red_center > 550:
+            self.crosswalk = True
+            move.angular.z = 0
+            move.linear.x = 0
+        
+
+        # constant to determine which line to follow (big impact on PID performance)
+        slope_turn_constant = 30
+
+        if self.crosswalk == False:
+            # determine which line to follow with PID
+            if slopeL < slope_turn_constant and slopeR < -slope_turn_constant:
+                # left line go bye bye (steer with right)
+                move.angular.z = 2*(1-4*(cXR-640)/image_width)*angMax
+                cv2.putText(img=thresh_img, text="Right", org=(1200, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+            elif slopeL > slope_turn_constant and slopeR > -slope_turn_constant:
+                # right line go bye bye (steer with left)
+                move.angular.z = 2*(1-4*(cXL)/image_width)*angMax
+                cv2.putText(img=thresh_img, text="Left", org=(20, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+            else:
+                # both lines in sight
+                cX = int((cXR+cXL)/2)
+                move.angular.z = (1-2*cX/image_width)*angMax
+                cv2.putText(img=thresh_img, text="Both", org=(600, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+        
         
         # publish the move object
         try:
@@ -134,8 +152,9 @@ class image_converter:
         except CvBridgeError as e:
             print(e)
 
+
         # display troubleshooting screen
-        cv2.imshow("Image window", thresh_img)
+        cv2.imshow("Image window", red_mask)
         cv2.waitKey(1)
 
 
@@ -172,7 +191,16 @@ class image_converter:
             cX = -1
 
         return cX + x_range[0]-40
-        
+
+
+    def findCentroidY(self, img):
+        M = cv2.moments(img)
+        try:
+            cY = int(M["m01"] / M["m00"])
+        except ZeroDivisionError:
+            cY = -1
+
+        return cY
 
 
 
