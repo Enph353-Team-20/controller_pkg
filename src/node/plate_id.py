@@ -49,55 +49,12 @@ class PlateID():
         self.sift.input_image(input)
         self.sift.sift_locate()
         
-        # self.processing_v1(input) 
-        self.processing_v2(input)
+        self.processing_v1(input) 
 
         # self.sift.show_debug("homogr")
         self.sift.show_debug("matches")
 
         pass
-
-    def processing_v2(self, input):
-        """Extract plate letters using homography
-
-        Args:
-            input (_type_): _description_
-        """
-        good_points = self.sift.get_output()
-
-        if (len(good_points) >= self.max_gp):
-            self.max_gp = len(good_points)
-            self.prev_best_img = self.best_img
-            self.best_img = input
-            self.avg_x, self.avg_y = self.sift.centroid_of_points()
-
-        if (time.process_time() - self.last_img_save > 2.0) and (len(good_points) == 0 and self.max_gp >= 3):
-            modified_img = self.best_img
-
-            left_bound = max(int(self.avg_x - max(self.avg_x,self.best_img.shape[1]-self.avg_x)/self.best_img.shape[1]*50), 0)
-            right_bound = min(int(self.avg_x + max(self.avg_x,self.best_img.shape[1]-self.avg_x)/self.best_img.shape[1]*90), self.best_img.shape[1])
-            top_bound = max(int(self.avg_y - max(self.avg_y,self.best_img.shape[0]-self.avg_y)/self.best_img.shape[0]*90), 0)
-            bottom_bound = min(int(self.avg_y + max(self.avg_y,self.best_img.shape[0]-self.avg_y)/self.best_img.shape[0]*90), self.best_img.shape[0])
-
-            cropped_plate = modified_img[top_bound:bottom_bound,left_bound:right_bound]
-
-            print([self.avg_x, self.avg_y, left_bound, right_bound, top_bound, bottom_bound])
-
-            # cv2.circle(modified_img, (left_bound, top_bound), 5, (0,255,0), -1)
-            # cv2.circle(modified_img, (right_bound, bottom_bound), 5, (0,255,0), -1)
-            
-            filename = 'img' + str(int(time.time())) + '_gp_' + str(self.max_gp) + '.png'
-            os.chdir('/home/fizzer/Downloads/img_spam')
-            # cv2.imwrite(filename, cropped_plate)
-            cv2.imshow("cropped", cropped_plate)
-            cv2.waitKey(1)
-
-
-            
-            self.max_gp = 0
-
-
-
 
     def processing_v1(self, input):
         """

@@ -6,12 +6,13 @@ import time
 
 class SiftProcessor():
 
-    def __init__(self, templates):
+    def __init__(self, templates, name):
         """Initiate SiftProcessor.
         
         Args:
             templates (list(np.array(int))): Single-channel cv2 images
         """
+        self.name = name
         self.sift = cv2.SIFT_create()
 
         self.index_params = dict(algorithm=0, trees=5)
@@ -136,6 +137,6 @@ class SiftProcessor():
 
     def show_debug(self, flag):
         if (self.debug_imgs[flag] is not None):
-            cv2.imshow(flag, self.debug_imgs[flag])
+            cv2.imshow(self.name + ' ' + flag, self.debug_imgs[flag])
             cv2.waitKey(1)
 
