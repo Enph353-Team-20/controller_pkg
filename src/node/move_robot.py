@@ -43,11 +43,38 @@ def updateCorrVal(data):
 
 # sub = rospy.Subscriber('line_x', Int16, updateCentroid)
 # sub = rospy.Subscriber('corrVal', Float32, updateCorrVal)
-rate = rospy.Rate(2)
+rate = rospy.Rate(24)
 
 while not rospy.is_shutdown():
-    move = Twist()
-    # move.linear.x = 1
-    move.angular.z = 0.3
-    pub.publish(move)
-    rate.sleep()
+    # try:
+    #     move = Twist()
+    #     # move.linear.x = 1
+    #     move.angular.z = 0.3
+    #     pub.publish(move)
+    # except KeyboardInterrupt:
+    #     move = Twist()
+    #     move.linear.x = 0
+    #     move.linear.x = 0
+    #     move.linear.x = 0
+    #     move.angular.x = 0
+    #     move.angular.y = 0
+    #     move.angular.z = 0
+    #     pub.publish(move)
+    #     break
+
+    try:
+        move = Twist()
+        # move.linear.x = 1
+        move.angular.z = 0.3
+        pub.publish(move)
+    except rospy.ROSInterruptException:
+        move = Twist()
+        move.linear.x = 0
+        move.linear.x = 0
+        move.linear.x = 0
+        move.angular.x = 0
+        move.angular.y = 0
+        move.angular.z = 0
+        pub.publish(move)
+        break
+
