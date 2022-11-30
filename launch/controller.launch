@@ -11,4 +11,10 @@
          name="scoring_manager" 
          output="screen">
    </node>
+
+   <node pkg="controller_pkg"
+         type="plate_id_v2.py"
+         name="plate_id" 
+         output="screen">
+   </node>
 </launch>
