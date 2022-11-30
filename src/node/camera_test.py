@@ -38,9 +38,8 @@ def callback(data):
     #     cv2.imwrite('p' + str(int(time.time())) + '.png', scaled)
     #     prevTime = time.time()
 
-    cv_image = cv2.imread("/home/fizzer/Downloads/img_spam/img1669670071_gp_4.png", cv2.IMREAD_UNCHANGED)
+    cv_image = cv2.imread("/home/fizzer/Downloads/img_spam/img1669675999_gp_4.png", cv2.IMREAD_UNCHANGED)
     
-
     test_img_hsv = cv2.cvtColor(cv_image.copy(), cv2.COLOR_BGR2HSV)
     denoised = cv2.fastNlMeansDenoising(test_img_hsv, h=5)
 
@@ -56,17 +55,8 @@ def callback(data):
     print(longest_contours)
         
     edges_img = np.zeros((cv_image.shape[0], cv_image.shape[1], 1),  dtype=np.uint8)
-    cv2.drawContours(edges_img, longest_contours, -1, (255,255,255), 1)
-    cv2.drawContours(hsv_plate, longest_contours, -1, (255,255,255), 1)
-
-    cv2.imshow('m', hsv_mask)
-    cv2.imshow('c', hsv_plate)
-    cv2.imshow('e', edges_img)
-    cv2.waitKey(1)
 
     linesP = cv2.HoughLinesP(edges_img, rho=1, theta=np.pi / 180, threshold=20, maxLineGap=10, minLineLength=25)
-    # print("Lines: ")
-    # print(linesP)
     
     topmost_line = None
     bottommost_line = None
@@ -82,9 +72,9 @@ def callback(data):
             top_y = l_miny
 
     for l in linesP:
-        if abs(l[0][3] - l[0][1]) <= 5 and abs(top_y - l[0][1]) <= 5: 
+        if abs(l[0][3] - l[0][1]) <= 10 and abs(top_y - l[0][1]) <= 5: 
             topmost_line = l
-        if abs(l[0][3] - l[0][1]) <= 5 and abs(bottom_y - l[0][1]) <= 5: 
+        if abs(l[0][3] - l[0][1]) <= 10 and abs(bottom_y - l[0][1]) <= 5: 
             bottommost_line = l
 
     corners = []
@@ -104,10 +94,6 @@ def callback(data):
         corners.append((bottommost_line[0][2], bottommost_line[0][3]))
         corners.append((bottommost_line[0][0], bottommost_line[0][1]))
 
-    print(topmost_line)
-    print(bottommost_line)
-    print(corners)
-
     for c in corners:
         cv2.circle(hsv_plate, c, 5, (255,255,255), -1)
 
@@ -115,12 +101,14 @@ def callback(data):
     matrix = cv2.getPerspectiveTransform(np.float32(corners), np.float32(dest_pts))
     warped = cv2.warpPerspective(cv_image, matrix, (150,450))
     
+    # cv2.drawContours(edges_img, longest_contours, -1, (255,255,255), 1)
+    cv2.drawContours(hsv_plate, longest_contours, -1, (255,255,255), 1)
+    # cv2.imshow('m', hsv_mask)
+    # cv2.imshow('c', hsv_plate)
+    # cv2.imshow('e', edges_img)
     cv2.imshow('w', warped)
     cv2.imshow('h2', hsv_plate)
-    # cv2.imshow('h', homography)
-
-    cv2.imshow("Image window", cv_image)
-    cv2.waitKey(0)
+    cv2.waitKey(1)
 
 
 def main(args):

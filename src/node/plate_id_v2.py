@@ -54,14 +54,15 @@ class PlateID():
         self.sift.input_image(input)
         self.sift.sift_locate()
         
-        self.processing_v2(input)
+        self.process_img(input)
 
         # self.sift.show_debug("homogr")
         self.sift.show_debug("matches")
 
         pass
 
-    def processing_v2(self, input):
+
+    def process_img(self, input):
         """Extract plate letters using homography
 
         Args:
@@ -77,7 +78,6 @@ class PlateID():
             self.avg_x, self.avg_y = self.sift.centroid_of_points()
 
         if (time.process_time() - self.last_img_save > 2.0) and (len(good_points) == 0 and self.max_gp >= 3):
-            modified_img = self.best_img
 
             left_bound = max(int(self.avg_x - max(self.avg_x,self.best_img.shape[1]-self.avg_x)/self.best_img.shape[1]*50), 0)
             right_bound = min(int(self.avg_x + max(self.avg_x,self.best_img.shape[1]-self.avg_x)/self.best_img.shape[1]*90), self.best_img.shape[1])
@@ -86,8 +86,9 @@ class PlateID():
 
             cropped_plate = self.best_img_org[top_bound:bottom_bound,left_bound:right_bound,:]
 
-            print([self.avg_x, self.avg_y, left_bound, right_bound, top_bound, bottom_bound])
+            # print([self.avg_x, self.avg_y, left_bound, right_bound, top_bound, bottom_bound])
 
+            # modified_img = self.best_img
             # cv2.circle(modified_img, (left_bound, top_bound), 5, (0,255,0), -1)
             # cv2.circle(modified_img, (right_bound, bottom_bound), 5, (0,255,0), -1)
             
@@ -100,27 +101,93 @@ class PlateID():
             
             self.max_gp = 0
 
+            self.perspective_transform_plate(cropped_plate)
+
+
+    def perspective_transform_plate(self, input):
+    
+        test_img_hsv = cv2.cvtColor(input.copy(), cv2.COLOR_BGR2HSV)
+        denoised = cv2.fastNlMeansDenoising(test_img_hsv, h=5)
+
+        hsv_mask = cv2.inRange(denoised, np.array((0, 0, 100)), np.array((0, 0, 210)))
+        hsv_plate = cv2.bitwise_and(test_img_hsv, test_img_hsv, hsv_mask)
+
+        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        longest_contours = []
+        for c in contours:
+            if len(c) > 10:
+                longest_contours.append(c)
+
+        print(longest_contours)
+            
+        edges_img = np.zeros((input.shape[0], input.shape[1], 1),  dtype=np.uint8)
+
+        cv2.drawContours(edges_img, longest_contours, -1, (255,255,255), 1)
+        cv2.drawContours(hsv_plate, longest_contours, -1, (255,255,255), 1)
+        # cv2.imshow('m', hsv_mask)
+        cv2.imshow('c', hsv_plate)
+        # cv2.imshow('e', edges_img)
+
+        linesP = cv2.HoughLinesP(edges_img, rho=1, theta=np.pi / 180, threshold=20, maxLineGap=10, minLineLength=25)
+        
+        topmost_line = None
+        bottommost_line = None
+        top_y = edges_img.shape[0]
+        bottom_y = 0
+
+        for l in linesP:
+            l_maxy = max(l[0][1], l[0][3])
+            l_miny = min(l[0][1], l[0][3])
+            if l_maxy > bottom_y:
+                bottom_y = l_maxy
+            if l_miny < top_y:
+                top_y = l_miny
+
+        for l in linesP:
+            if abs(l[0][3] - l[0][1]) <= 5 and abs(top_y - l[0][1]) <= 5: 
+                topmost_line = l
+            if abs(l[0][3] - l[0][1]) <= 5 and abs(bottom_y - l[0][1]) <= 5: 
+                bottommost_line = l
+
+        corners = []
+        # Find top left corner first
+        if (topmost_line[0][0] < topmost_line[0][2]):
+            corners.append((topmost_line[0][0], topmost_line[0][1]))
+            corners.append((topmost_line[0][2], topmost_line[0][3]))
+        else:
+            corners.append((topmost_line[0][2], topmost_line[0][3]))
+            corners.append((topmost_line[0][0], topmost_line[0][1]))
+        
+        # Bottom right corner goes 3rd
+        if (bottommost_line[0][0] > bottommost_line[0][2]):
+            corners.append((bottommost_line[0][0], bottommost_line[0][1]))
+            corners.append((bottommost_line[0][2], bottommost_line[0][3]))
+        else:
+            corners.append((bottommost_line[0][2], bottommost_line[0][3]))
+            corners.append((bottommost_line[0][0], bottommost_line[0][1]))
+
+        for c in corners:
+            cv2.circle(hsv_plate, c, 5, (255,255,255), -1)
+
+        dest_pts = np.array([(0, 0), (150,0), (150, 450), (0,450)])
+        matrix = cv2.getPerspectiveTransform(np.float32(corners), np.float32(dest_pts))
+        warped = cv2.warpPerspective(input, matrix, (150,450))
+        
+        cv2.imshow('w', warped)
+        cv2.imshow('h2', hsv_plate)
+        cv2.waitKey(1)
+
+        filename = 'img' + str(int(time.time())) + '.png'
+        os.chdir('/home/fizzer/Downloads/img_spam')
+        cv2.imwrite(filename, warped)
+        cv2.waitKey(1)
+
 
 def main(args):
     rospy.init_node('plate_id', anonymous=True)
     rate = rospy.Rate(24)
 
     template_img = cv2.imread("/home/fizzer/ros_ws/src/controller_pkg/src/node/media/P01.png", cv2.IMREAD_GRAYSCALE)
-
-    # test_img = cv2.imread("/home/fizzer/Downloads/Plate_colourful.png", cv2.IMREAD_UNCHANGED)
-    # test_img_hsv = cv2.cvtColor(test_img, cv2.COLOR_BGR2HSV)
-    # hsv_mask = cv2.inRange(test_img_hsv, np.array((0, 0, 100)), np.array((5, 5, 105)))
-    # print(hsv_mask.shape)
-    # print(test_img_hsv.shape)
-    # hsv_plate = cv2.bitwise_and(test_img, test_img, hsv_mask)
-    # cv2.imshow('m', hsv_mask)
-    # cv2.imshow('c', hsv_plate)
-    # cv2.waitKey(1)
-
-    # test_img = cv2.imread("/home/fizzer/Downloads/img1669179552_gp_4.png", cv2.IMREAD_GRAYSCALE)
-    # ret, thresh = cv2.threshold(test_img, ) 
-    # cv2.imshow('c', test_img)
-    # cv2.waitKey(1)
  
     processor = PlateID([template_img])
 
