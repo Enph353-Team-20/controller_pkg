@@ -193,7 +193,7 @@ class image_converter:
             # look for the pedestrian
             error_val = 0.5
             img_val = self.averageImageValue(gray,640,360,100)
-            if time.time()>self.delay_time+1:
+            if time.time()>self.delay_time+0.25:
                 if img_val > self.img_val_last+error_val or img_val<self.img_val_last-error_val:
                     print("pedestrian")
                     self.pedestrian_count += 1
@@ -270,7 +270,7 @@ class image_converter:
             # plot left and right centroids on the image
             cv2.circle(thresh_img, (cXR, 300), 16, (255,255,255), -1)
             cv2.circle(thresh_img, (cXL, 300), 16, (255,255,255), -1)
-            cv2.circle(thresh_img, (int((cXR+cXL)/2), 300), 25, (255,255,255), -1)
+            cv2.circle(thresh_img, (cXc, 300), 25, (255,255,255), -1)
 
             # constant to determine which line to follow (big impact on PID performance)
             slope_turn_constant = 10000
@@ -289,8 +289,10 @@ class image_converter:
                 else:
                     # follow the car
                     move.linear.x = 0.3
-                    move.angular.z = (1-2*cXc/image_width)*angMax
+                    move.angular.z = (1-2*(cXc+10)/image_width)*angMax
                     cv2.putText(img=thresh_img, text="Car", org=(600, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+                    # cv2.circle(car_thresh, (cXc, 300), 25, (255,0,0), -1)
+                    # cv2.imshow("Car view", car_thresh)
             else:
                 move.linear.x = 0
                 move.angular.z = 0

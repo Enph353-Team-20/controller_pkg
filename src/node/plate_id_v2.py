@@ -151,7 +151,7 @@ class PlateID():
         # cv2.imshow('c', hsv_plate)
         # cv2.imshow('e', edges_img)
 
-        linesP = cv2.HoughLinesP(edges_img, rho=1, theta=np.pi / 180, threshold=20, maxLineGap=10, minLineLength=25)
+        linesP = cv2.HoughLinesP(edges_img, rho=1, theta=np.pi / 180, threshold=30, maxLineGap=10, minLineLength=25)
 
         if len(linesP) == 0:
             print("No Hough lines generated: " + plate_img.base_file_name)
