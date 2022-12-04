@@ -30,7 +30,7 @@ class PlateImage():
     avg_x = None
     avg_y = None
 
-    base_file_name = 'img' + str(int(time.time()))
+    base_file_name = None
     guess = None # NN guess?
 
     def __init__(self, input):
@@ -67,6 +67,7 @@ class PlateID():
             image_org = self.bridge.imgmsg_to_cv2(data, "bgr8")
             # image_grey = cv2.cvtColor(image_org, cv2.COLOR_BGR2GRAY)
             new_img = PlateImage(image_org)
+            new_img.base_file_name = 'img' + str(int(time.time_ns()))
         except CvBridgeError as e:
             print(e)
         
@@ -94,10 +95,12 @@ class PlateID():
         # If an image has more good points than the current maximum, replace the best previous image
         if (len(good_points) >= self.max_gp):
             self.max_gp = len(good_points)
+        if (len(good_points) >= self.max_gp and len(good_points) >= 2):
             avg_x, avg_y = self.sift.centroid_of_points()
             plate_img.avg_x = avg_x
             plate_img.avg_y = avg_y
-            self.good_imgs.clear()
+            # self.good_imgs.clear()
+            print("Appended")
             self.good_imgs.append(plate_img)
 
         if (time.process_time() - self.last_img_save > 2.0) and (len(good_points) == 0 and self.max_gp >= 3):
@@ -114,10 +117,10 @@ class PlateID():
                 # cv2.circle(img.cropped, (left_bound, top_bound), 5, (0,255,0), -1)
                 # cv2.circle(img.cropped, (right_bound, bottom_bound), 5, (0,255,0), -1)
                 
-                os.chdir('/home/fizzer/Downloads/img_spam')
-                cv2.imwrite(img.base_file_name + '_c.png', img.cropped)
-                cv2.imshow("cropped", img.cropped)
-                cv2.waitKey(1)
+                # os.chdir('/home/fizzer/Downloads/img_spam')
+                # cv2.imwrite(img.base_file_name + '_c.png', img.cropped)
+                # cv2.imshow("cropped", img.cropped)
+                # cv2.waitKey(1)
 
                 self.perspective_transform_plate(img)
             
