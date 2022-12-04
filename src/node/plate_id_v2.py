@@ -129,13 +129,15 @@ class PlateID():
     
         test_img_hsv = cv2.cvtColor(plate_img.cropped, cv2.COLOR_BGR2HSV)
         # denoised = cv2.fastNlMeansDenoising(test_img_hsv, h=5)
-        # denoised = cv2.GaussianBlur(test_img_hsv,(21,21),0)
+        # denoised = cv2.GaussianBlur(test_img_hsv,(5,5),0)
         # cv2.imshow("noise", denoised)
+
+
 
         lower1 = np.array([0,0,90])
         upper1 = np.array([0,10,250])
         mask1 = cv2.inRange(test_img_hsv,lower1,upper1)
-        lower2 = np.array([90,0,70])
+        lower2 = np.array([90,1,70])
         upper2 = np.array([120,60,180])
         mask2 = cv2.inRange(test_img_hsv,lower2,upper2)
         hsv_mask = cv2.bitwise_or(mask1,mask2)
@@ -164,9 +166,9 @@ class PlateID():
         plate_img.edges = edges_img.copy()
 
         cv2.drawContours(hsv_plate, longest_contours, -1, (255,255,255), 1)
-        cv2.imshow('m', hsv_mask)
+        # cv2.imshow('m', hsv_mask)
         # cv2.imshow('c', hsv_plate)
-        cv2.imshow('e', edges_img)
+        # cv2.imshow('e', edges_img)
 
         edges_large = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
         cv2.drawContours(edges_large, cnt, -1, (255, 255, 255), 1)
@@ -177,7 +179,7 @@ class PlateID():
 
         edges_box = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
         cv2.drawContours(edges_box, box, -1, (255, 255, 255), 1)
-        cv2.imshow('edges box', edges_box)
+        # cv2.imshow('edges box', edges_box)
 
         linesP = cv2.HoughLinesP(edges_img, rho=1, theta=np.pi / 180, threshold=20, maxLineGap=10, minLineLength=25)
 
@@ -228,20 +230,41 @@ class PlateID():
         for c in corners:
             cv2.circle(hsv_plate, c, 5, (255,255,255), -1)
 
+        box2 = np.zeros((4,2))
+        for i in range(4):
+            box2[i,:] = box[i,0,:]
+        ordered_box = self.order_points(box2)
+            
+
         dest_pts = np.array([(0, 0), (150,0), (150, 450), (0,450)])
         # matrix = cv2.getPerspectiveTransform(np.float32(corners), np.float32(dest_pts))
-        matrix = cv2.getPerspectiveTransform(np.float32(box), np.float32(dest_pts))
+        matrix = cv2.getPerspectiveTransform(np.float32(ordered_box), np.float32(dest_pts))
         warped = cv2.warpPerspective(plate_img.cropped, matrix, (150,450))
         plate_img.warped = warped.copy()
         
+        plate_output = warped[300:400,:]
         cv2.imshow('w', warped)
-        cv2.imshow('h2', hsv_plate)
+        cv2.imshow('plate', plate_output)
+        # cv2.imshow('h2', hsv_plate)
         cv2.waitKey(1)
 
         filename = plate_img.base_file_name + '_w.png'
         os.chdir('/home/fizzer/Downloads/img_spam')
         cv2.imwrite(filename, warped)
         cv2.waitKey(1)
+
+
+
+    def order_points(self,pts):
+        rect = np.zeros((4, 2), dtype=np.float32)
+        s = pts.sum(axis=1)
+        rect[0] = pts[np.argmin(s)]
+        rect[2] = pts[np.argmax(s)]
+
+        diff = np.diff(pts, axis = 1)
+        rect[1] = pts[np.argmin(diff)]
+        rect[3] = pts[np.argmax(diff)]
+        return rect 
 
 
 def main(args):
