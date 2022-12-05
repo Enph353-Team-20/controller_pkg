@@ -128,37 +128,27 @@ class PlateID():
     def perspective_transform_plate(self, plate_img):
     
         test_img_hsv = cv2.cvtColor(plate_img.cropped, cv2.COLOR_BGR2HSV)
-        # denoised = cv2.fastNlMeansDenoising(test_img_hsv, h=5)
-        # denoised = cv2.GaussianBlur(test_img_hsv,(5,5),0)
-        # cv2.imshow("noise", denoised)
-
 
 
         lower1 = np.array([0,0,90])
-        upper1 = np.array([0,10,250])
+        upper1 = np.array([0,10,210])
         mask1 = cv2.inRange(test_img_hsv,lower1,upper1)
         lower2 = np.array([90,1,70])
         upper2 = np.array([120,60,180])
         mask2 = cv2.inRange(test_img_hsv,lower2,upper2)
         hsv_mask = cv2.bitwise_or(mask1,mask2)
 
-        # hsv_mask = cv2.inRange(denoised, np.array((0, 0, 90)), np.array((360, 17, 250)))
-
 
         hsv_plate = cv2.bitwise_and(test_img_hsv, test_img_hsv, hsv_mask)
 
-        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_LIST , cv2.CHAIN_APPROX_NONE)
+        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
 
         longest_contours = []
         for c in contours:
             if len(c) > 10:
                 longest_contours.append(c)
 
-        # ctr = cv2.convexHull(ctr)
         cnt = sorted(contours, key=cv2.contourArea, reverse=True)[0]
-        # print(longest_contours)
-
-        # box = cv2.approxPolyDP(c, 0.05, True)
             
         edges_img = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
 
@@ -174,61 +164,12 @@ class PlateID():
         cv2.drawContours(edges_large, cnt, -1, (255, 255, 255), 1)
         cv2.imshow('edges large', edges_large)
 
-        epsilon = 0.1*cv2.arcLength(cnt,True)
+        epsilon = 0.05*cv2.arcLength(cnt,True)
         box = cv2.approxPolyDP(cnt, epsilon, True)
 
         edges_box = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
         cv2.drawContours(edges_box, box, -1, (255, 255, 255), 1)
         # cv2.imshow('edges box', edges_box)
-
-        linesP = cv2.HoughLinesP(edges_img, rho=1, theta=np.pi / 180, threshold=20, maxLineGap=10, minLineLength=25)
-
-        if len(linesP) == 0:
-            print("No Hough lines generated: " + plate_img.base_file_name)
-            return
-        
-        topmost_line = None
-        bottommost_line = None
-        top_y = edges_img.shape[0]
-        bottom_y = 0
-
-        for l in linesP:
-            l_maxy = max(l[0][1], l[0][3])
-            l_miny = min(l[0][1], l[0][3])
-            if l_maxy > bottom_y:
-                bottom_y = l_maxy
-            if l_miny < top_y:
-                top_y = l_miny
-
-        for l in linesP:
-            if abs(l[0][3] - l[0][1]) <= 5 and abs(top_y - l[0][1]) <= 5: 
-                topmost_line = l
-            if abs(l[0][3] - l[0][1]) <= 5 and abs(bottom_y - l[0][1]) <= 5: 
-                bottommost_line = l
-
-        if bottommost_line is None or topmost_line is None:
-            print("No top or bottom line found: " + plate_img.base_file_name)
-            return
-
-        corners = []
-        # Find top left corner first
-        if (topmost_line[0][0] < topmost_line[0][2]):
-            corners.append((topmost_line[0][0], topmost_line[0][1]))
-            corners.append((topmost_line[0][2], topmost_line[0][3]))
-        else:
-            corners.append((topmost_line[0][2], topmost_line[0][3]))
-            corners.append((topmost_line[0][0], topmost_line[0][1]))
-        
-        # Bottom right corner goes 3rd
-        if (bottommost_line[0][0] > bottommost_line[0][2]):
-            corners.append((bottommost_line[0][0], bottommost_line[0][1]))
-            corners.append((bottommost_line[0][2], bottommost_line[0][3]))
-        else:
-            corners.append((bottommost_line[0][2], bottommost_line[0][3]))
-            corners.append((bottommost_line[0][0], bottommost_line[0][1]))
-
-        for c in corners:
-            cv2.circle(hsv_plate, c, 5, (255,255,255), -1)
 
         box2 = np.zeros((4,2))
         for i in range(4):
