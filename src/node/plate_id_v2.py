@@ -110,14 +110,14 @@ class PlateID():
         hsv = cv2.cvtColor(plate_img.cropped[:], cv2.COLOR_BGR2HSV)
 
         # filter the hsv (mask1 is white and mask2 is the license plate gray)
-        # lower1 = np.array([0,0,90])
-        # upper1 = np.array([0,10,210])
-        # mask1 = cv2.inRange(hsv,lower1,upper1)
-        lower2 = np.array([90,1,70])
+        lower1 = np.array([0,0,90])
+        upper1 = np.array([0,10,210])
+        mask1 = cv2.inRange(hsv,lower1,upper1)
+        lower2 = np.array([90,0,70])
         upper2 = np.array([120,60,180])
         mask2 = cv2.inRange(hsv,lower2,upper2)
-        # hsv_mask = cv2.bitwise_or(mask1,mask2)
-        hsv_mask = mask2
+        hsv_mask = cv2.bitwise_or(mask1,mask2)
+        # hsv_mask = mask1
 
         # get the contours
         contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -151,12 +151,12 @@ class PlateID():
 
     def perspective_transform_corners(self,plate_img):
 
-        dest_pts = np.array([(0, 0), (150,0), (150, 450), (0,450)])
+        dest_pts = np.array([(0, 0), (600,0), (600, 300), (0,300)])
         matrix = cv2.getPerspectiveTransform(np.float32(plate_img.corners), np.float32(dest_pts))
-        warped = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (150,450))
+        warped = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (600,300))
         plate_img.warped = warped.copy()
         
-        plate_output = warped[300:400,:]
+        plate_output = warped[:]
         cv2.imshow('w', warped)
         cv2.imshow('plate', plate_output)
         cv2.waitKey(1)
