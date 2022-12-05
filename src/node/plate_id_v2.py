@@ -120,7 +120,7 @@ class PlateID():
         hsv_mask = mask1
 
         # get the contours
-        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         # find the largest contour
         largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
@@ -156,90 +156,19 @@ class PlateID():
 
     def perspective_transform_corners(self,plate_img):
 
-        dest_pts = np.array([(0, 0), (150,0), (150, 300), (0,300)])
+        dest_pts = np.array([(0, 0), (500,0), (500, 500), (0,500)])
         matrix = cv2.getPerspectiveTransform(np.float32(plate_img.corners), np.float32(dest_pts))
-        warped = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (150,400))
+        warped = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (500,650))
         plate_img.warped = warped.copy()
         
-        plate_output = warped[300:380,:]
+        plate_output = warped[500:650,:]
         cv2.imshow('w', warped)
         cv2.imshow('plate', plate_output)
         cv2.waitKey(1)
 
         filename = plate_img.base_file_name + '_w.png'
-        os.chdir('/home/fizzer/Downloads/img_spam')
-        cv2.imwrite(filename, warped)
-        cv2.waitKey(1)
-
-
-
-    def perspective_transform_plate(self, plate_img):
-    
-        test_img_hsv = cv2.cvtColor(plate_img.cropped, cv2.COLOR_BGR2HSV)
-
-
-        lower1 = np.array([0,0,90])
-        upper1 = np.array([0,10,210])
-        mask1 = cv2.inRange(test_img_hsv,lower1,upper1)
-        lower2 = np.array([90,1,70])
-        upper2 = np.array([120,60,180])
-        mask2 = cv2.inRange(test_img_hsv,lower2,upper2)
-        hsv_mask = cv2.bitwise_or(mask1,mask2)
-
-
-        hsv_plate = cv2.bitwise_and(test_img_hsv, test_img_hsv, hsv_mask)
-
-        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
-
-        longest_contours = []
-        for c in contours:
-            if len(c) > 10:
-                longest_contours.append(c)
-
-        cnt = sorted(contours, key=cv2.contourArea, reverse=True)[0]
-            
-        edges_img = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
-
-        cv2.drawContours(edges_img, longest_contours, -1, (255,255,255), 1)
-        plate_img.edges = edges_img.copy()
-
-        cv2.drawContours(hsv_plate, longest_contours, -1, (255,255,255), 1)
-        # cv2.imshow('m', hsv_mask)
-        # cv2.imshow('c', hsv_plate)
-        # cv2.imshow('e', edges_img)
-
-        edges_large = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
-        cv2.drawContours(edges_large, cnt, -1, (255, 255, 255), 1)
-        cv2.imshow('edges large', edges_large)
-
-        epsilon = 0.05*cv2.arcLength(cnt,True)
-        box = cv2.approxPolyDP(cnt, epsilon, True)
-
-        edges_box = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
-        cv2.drawContours(edges_box, box, -1, (255, 255, 255), 1)
-        # cv2.imshow('edges box', edges_box)
-
-        box2 = np.zeros((4,2))
-        for i in range(4):
-            box2[i,:] = box[i,0,:]
-        ordered_box = self.order_points(box2)
-            
-
-        dest_pts = np.array([(0, 0), (150,0), (150, 450), (0,450)])
-        # matrix = cv2.getPerspectiveTransform(np.float32(corners), np.float32(dest_pts))
-        matrix = cv2.getPerspectiveTransform(np.float32(ordered_box), np.float32(dest_pts))
-        warped = cv2.warpPerspective(plate_img.cropped, matrix, (150,450))
-        plate_img.warped = warped.copy()
-        
-        plate_output = warped[300:400,:]
-        cv2.imshow('w', warped)
-        cv2.imshow('plate', plate_output)
-        # cv2.imshow('h2', hsv_plate)
-        cv2.waitKey(1)
-
-        filename = plate_img.base_file_name + '_w.png'
-        os.chdir('/home/fizzer/Downloads/img_spam')
-        cv2.imwrite(filename, warped)
+        os.chdir('/home/fizzer/Downloads/PlateData')
+        cv2.imwrite(filename, plate_output)
         cv2.waitKey(1)
 
 
