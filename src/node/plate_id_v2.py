@@ -128,6 +128,70 @@ class PlateID():
             self.good_imgs.clear()
 
 
+    def findCorners(self, img):
+
+        # convert to hsv format
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # filter the hsv (mask1 is white and mask2 is the license plate gray)
+        lower1 = np.array([0,0,90])
+        upper1 = np.array([0,10,210])
+        mask1 = cv2.inRange(test_img_hsv,lower1,upper1)
+        # lower2 = np.array([90,1,70])
+        # upper2 = np.array([120,60,180])
+        # mask2 = cv2.inRange(test_img_hsv,lower2,upper2)
+        # hsv_mask = cv2.bitwise_or(mask1,mask2)
+        hsv_mask = mask1
+
+        # get the contours
+        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+        # find the largest contour
+        largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
+
+        # plot the contour on screen
+        edges = np.zeros((hsv.shape[0], hsv.shape[1], 1),  dtype=np.uint8)
+        cv2.drawContours(edges, largest_contour, -1, (255, 255, 255), 1)
+        cv2.imshow('edges', edges)
+
+        # get the corners of the largest contour
+        epsilon = 0.05*cv2.arcLength(largest_contour,True)
+        box = cv2.approxPolyDP(largest_contour, epsilon, True)
+
+        # see if there are 4 corners
+        if box.shape[0] != 4:
+            return (None, 0)
+        
+        # if there are 4 corners then sort them
+        box2 = np.zeros((4,2))
+        for i in range(4):
+            box2[i,:] = box[i,0,:]
+        corners = self.order_points(box2)
+
+        # get the are of the contour
+        area = cv2.contourArea(largest_contour)
+
+        return corners, area
+
+    def perspective_transform_corners(self,img,corners)
+
+        dest_pts = np.array([(0, 0), (150,0), (150, 450), (0,450)])
+        matrix = cv2.getPerspectiveTransform(np.float32(corners), np.float32(dest_pts))
+        warped = cv2.warpPerspective(img, matrix, (150,450))
+        plate_img.warped = warped.copy()
+        
+        plate_output = warped[300:400,:]
+        cv2.imshow('w', warped)
+        cv2.imshow('plate', plate_output)
+        cv2.waitKey(1)
+
+        filename = plate_img.base_file_name + '_w.png'
+        os.chdir('/home/fizzer/Downloads/img_spam')
+        cv2.imwrite(filename, warped)
+        cv2.waitKey(1)
+
+
+
     def perspective_transform_plate(self, plate_img):
     
         test_img_hsv = cv2.cvtColor(plate_img.cropped, cv2.COLOR_BGR2HSV)
@@ -136,10 +200,11 @@ class PlateID():
         lower1 = np.array([0,0,90])
         upper1 = np.array([0,10,210])
         mask1 = cv2.inRange(test_img_hsv,lower1,upper1)
-        lower2 = np.array([90,1,70])
-        upper2 = np.array([120,60,180])
-        mask2 = cv2.inRange(test_img_hsv,lower2,upper2)
-        hsv_mask = cv2.bitwise_or(mask1,mask2)
+        # lower2 = np.array([90,1,70])
+        # upper2 = np.array([120,60,180])
+        # mask2 = cv2.inRange(test_img_hsv,lower2,upper2)
+        # hsv_mask = cv2.bitwise_or(mask1,mask2)
+        hsv_mask = mask1
 
 
         hsv_plate = cv2.bitwise_and(test_img_hsv, test_img_hsv, hsv_mask)
