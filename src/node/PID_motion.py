@@ -223,7 +223,7 @@ class image_converter:
 
             # see if it has made a loop
             # if self.pedestrian_count > 1 and time.time() > self.detection_time+9:
-            if self.pedestrian_count == 2 and time.time() > self.detection_time+3:
+            if self.pedestrian_count == 2:
                 self.state = "turn to inner"
                 self.delay_time = time.time()
 
@@ -280,7 +280,7 @@ class image_converter:
 
             # define driving constants
             angMax = 5
-            maxSpeed = 0.5
+            maxSpeed = 0.3
             turnReduction = 0.2
 
             # determine which line to follow and drive off that line
@@ -290,13 +290,14 @@ class image_converter:
                 cv2.putText(img=thresh_img, text="Right", org=(1200, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
             else:
                 # drive left
-                move.angular.z = self.PIDcontrol(centersL[0]-eCL[0],angMax,image_width/2)
-                cv2.putText(img=thresh_img, text="Left", org=(20, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+                # move.angular.z = self.PIDcontrol(centersL[0]-eCL[0],angMax,image_width/2)
+                # cv2.putText(img=thresh_img, text="Left", org=(20, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
+                move.angular.z = self.PIDcontrol(centersC[0]-image_width/2,angMax,image_width)
 
             # determine linear speed based on how much we're truning
             move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),0)
 
-            if time.time() > self.delay_time + 5:
+            if time.time() > self.delay_time + 9:
                 self.delay_time = time.time()
                 self.state = "car"
 
