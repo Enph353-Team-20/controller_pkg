@@ -57,27 +57,6 @@ class NeuralNetManager():
         cv_img = self.bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
         cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
 
-        # trying to get parking id working better
-        # id_num = cv_img[:,500:650,:]
-        # hsv_num = cv2.cvtColor(np.float32(id_num), cv2.COLOR_BGR2HSV)
-
-        # rows = id_num.shape[0]
-        # cols = id_num.shape[1]
-
-        # lower = np.array([0,0,0])
-        # upper = np.array([0,0,40])
-        # mask = cv2.inRange(hsv_num,lower,upper)
-
-        # for i in range(rows):
-        #     for j in range(cols):
-        #         if mask[i,j] > 0:
-        #             id_num[i,j,2] = 0.3
-        #         else:
-        #             id_num[i,j,:] = 0.95
-        
-        # id_img = np.array([id_num])
-        # cv2.waitKey(1)
-
         # splice lisence plate images
         letter_imgs = np.array([
             cv_img[:,0:120] / 255,
@@ -105,14 +84,7 @@ class NeuralNetManager():
         id_prediction = onehot_to_sym(id_one_hot[0], "nums")
         # make sure it not zero
         if id_prediction == '0':
-            id_prediction == '8'
-
-
-        # plate_prediction = ""
-        # for oh in plate_one_hots[0:2]:
-        #     plate_prediction += onehot_to_sym(oh, "letters")
-        # for oh in plate_one_hots[2:4]:
-        #     plate_prediction += onehot_to_sym(oh, "nums")
+            return
 
         # append the plate guesses into the array
         id_val = min(ord(id_prediction) - ord('1'),7)
