@@ -11,7 +11,11 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16, Float32
+from std_msgs.msg import String
 
+
+# initial plate
+initPlate = "Team20,silver,0,AA00"
 
 # define constants
 white_threshold = 100
@@ -32,9 +36,11 @@ class image_converter:
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
         # publish to movement
         self.cmd_pub = rospy.Publisher('/R1/cmd_vel', Twist, queue_size=1)
+        # publish to plates
+        self.plate_pub = rospy.Publisher("/license_plate", String, queue_size=1)
 
         # state variable
-        self.state = "turn left"
+        self.state = "start timer"
         self.in_crosswalk = False
 
 
@@ -105,11 +111,13 @@ class image_converter:
 
 
 
-
-
         # start of state machine
 
-        if self.state == "turn left":
+        if self.state == "start timer":
+            time.sleep(1.5)
+            self.state = "turn left"
+
+        elif self.state == "turn left":
 
             # masking the hsv to filter for white lines
             lower = np.array([0,0,white_threshold])
@@ -490,7 +498,8 @@ class image_converter:
 def main(args):
     rospy.init_node('PID_motion', anonymous=True)
     ic = image_converter()
-    # ic.plate_pub.publish(test_plate)
+    time.sleep(1)
+    ic.plate_pub.publish(initPlate)
     try:
         rospy.spin()
     except KeyboardInterrupt:
