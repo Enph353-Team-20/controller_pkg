@@ -6,9 +6,11 @@ import rospy
 from std_msgs.msg import String
 import time
 
+from utils.neural_network import NeuralNetManager
 
 def main(args):
     pub = rospy.Publisher("/license_plate", String)
+    nn_manager = NeuralNetManager()
     rospy.init_node('scoring_manager', anonymous=True)
     rate = rospy.Rate(10)
     try:
@@ -16,14 +18,13 @@ def main(args):
         pub.publish(msg)
         start_time = time.time()
 
-        while (time.time() < start_time + 30.0):
-            pass
-        
-        msg = str('Team20,silvertip,-1,AA00')
-        pub.publish(msg)
-
-    except rospy.ROSInterruptException:
+        rospy.spin()
+    except KeyboardInterrupt:
         print("Shutting down")
+
+        
+    msg = str('Team20,silvertip,-1,AA00')
+    pub.publish(msg)
 
 if __name__ == "__main__":
     main(sys.argv)
