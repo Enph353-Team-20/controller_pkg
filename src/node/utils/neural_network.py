@@ -44,10 +44,12 @@ class NeuralNet():
 class NeuralNetManager():
     def __init__(self):
         self.plate_net = NeuralNet(PLATE_NET + '/e353_plate_model.h5')
-        self.id_net = NeuralNet(ID_NET + '/e353_id_model.h5')
+        # self.id_net = NeuralNet(ID_NET + '/e353_id_model.h5')
         self.sub = rospy.Subscriber("/plate_imgs",Image,self.callback)
         self.pub = rospy.Publisher("/license_plate", String,queue_size=1)
         self.bridge = CvBridge()
+
+        self.plate_recordings = [[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]],[[],[],[],[]]]
 
 
 
@@ -56,6 +58,7 @@ class NeuralNetManager():
         cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
         cv_img = cv_img / 255
 
+        # trying to get parking id working better
         id_num = cv_img[:,500:650,:]
         hsv_num = cv2.cvtColor(np.float32(id_num), cv2.COLOR_BGR2HSV)
 
@@ -69,12 +72,13 @@ class NeuralNetManager():
         for i in range(rows):
             for j in range(cols):
                 if mask[i,j] > 0:
-                    id_num[i,j,2] = 120/255
+                    id_num[i,j,2] = 0.2
                 else:
                     id_num[i,j,:] = 1
         
         id_img = np.array([id_num])
 
+        # splice lisence plate images
         letter_imgs = np.array([
             cv_img[:,0:120],
             cv_img[:,100:220],
@@ -93,15 +97,38 @@ class NeuralNetManager():
         # id_one_hot = self.id_net.predictImages(id_img)
         id_one_hot = self.plate_net.predictImages(id_img)
 
-        plate_prediction = ""
-        for oh in plate_one_hots[0:2]:
-            plate_prediction += onehot_to_sym(oh, "letters")
-        for oh in plate_one_hots[2:4]:
-            plate_prediction += onehot_to_sym(oh, "nums")
+
+
+        # get the id prediction
         # id_prediction = onehot_to_sym(id_one_hot[0], "nums")
         id_prediction = onehot_to_sym(id_one_hot[0], "nums")
 
+
+        # plate_prediction = ""
+        # for oh in plate_one_hots[0:2]:
+        #     plate_prediction += onehot_to_sym(oh, "letters")
+        # for oh in plate_one_hots[2:4]:
+        #     plate_prediction += onehot_to_sym(oh, "nums")
+
+
+        id_val = min(ord(id_prediction) - ord('1'),7)
+        for i in range(0,2):
+            self.plate_recordings[id_val][i].append(onehot_to_sym(plate_one_hots[i], "letters"))
+        for i in range(2,4):
+            self.plate_recordings[id_val][i].append(onehot_to_sym(plate_one_hots[i], "nums"))
+        
+
+        plate_prediction = ""
+        for i in range(0,4):
+            plate_prediction += self.getMostFrequent(self.plate_recordings[id_val][i])
+
+        # publish the result
         self.pub.publish(str('Team20,silvertip,' + str(id_prediction) + ',' + plate_prediction))
+
+
+    def getMostFrequent(self, input_list):
+        # finds most frequent element in a list
+        return max(set(input_list), key = input_list.count)
     
 
 def remap_sym(sym):

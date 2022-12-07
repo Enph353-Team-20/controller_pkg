@@ -221,8 +221,8 @@ class image_converter:
 
             # define driving constants
             angMax = 4
-            maxSpeed = 0.4
-            turnReduction = 0.3
+            maxSpeed = 0.43
+            turnReduction = 0.2
 
             # determine which line to follow and drive off that line
             if delta_xL < turn_diff and delta_xR > turn_diff:
@@ -385,7 +385,7 @@ class image_converter:
             # drive the inner loop
             elif time.time() > self.detection_time + 5:
                 road_turn = self.PIDcontrol(cent_road[0]-image_width/2-80,angMax,image_width)
-                blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.4*angMax,image_width)
+                blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.2*angMax,image_width)
                 move.angular.z = road_turn-blue_turn
                 move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),-0.05)
             # wait for the car to pass by
