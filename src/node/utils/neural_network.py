@@ -72,9 +72,9 @@ class NeuralNetManager():
         for i in range(rows):
             for j in range(cols):
                 if mask[i,j] > 0:
-                    id_num[i,j,2] = 0.2
+                    id_num[i,j,2] = 0.3
                 else:
-                    id_num[i,j,:] = 1
+                    id_num[i,j,:] = 0.95
         
         id_img = np.array([id_num])
 
@@ -102,6 +102,9 @@ class NeuralNetManager():
         # get the id prediction
         # id_prediction = onehot_to_sym(id_one_hot[0], "nums")
         id_prediction = onehot_to_sym(id_one_hot[0], "nums")
+        # make sure it not zero
+        if id_prediction == '0':
+            id_prediction == '8'
 
 
         # plate_prediction = ""
@@ -110,14 +113,14 @@ class NeuralNetManager():
         # for oh in plate_one_hots[2:4]:
         #     plate_prediction += onehot_to_sym(oh, "nums")
 
-
+        # append the plate guesses into the array
         id_val = min(ord(id_prediction) - ord('1'),7)
         for i in range(0,2):
             self.plate_recordings[id_val][i].append(onehot_to_sym(plate_one_hots[i], "letters"))
         for i in range(2,4):
             self.plate_recordings[id_val][i].append(onehot_to_sym(plate_one_hots[i], "nums"))
         
-
+        # give the current best prediction for the plate
         plate_prediction = ""
         for i in range(0,4):
             plate_prediction += self.getMostFrequent(self.plate_recordings[id_val][i])
