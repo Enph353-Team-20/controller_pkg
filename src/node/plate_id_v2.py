@@ -43,20 +43,13 @@ class PlateImage():
 class PlateID():
 
     def __init__(self, template):
-        self.sift = SiftProcessor(template, 'P finder')
-
-        debug_flags = {
-            "template_kp": False,
-            "input_kp": False,
-            "homogr": True,
-            "matches": True
-        }
-        self.sift.update_debug_flags(debug_flags)
 
         self.bridge = CvBridge()
         self.img_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
+        self.pub = rospy.Publisher("/plate_imgs", Image, queue_size=3)
 
-        self.area_thresh = 8000
+        self.area_thresh = 9000
+
         self.max_area = 0
         self.last_img_save = time.process_time()
 
@@ -71,8 +64,7 @@ class PlateID():
             new_img.base_file_name = 'img' + str(int(time.time_ns()))
         except CvBridgeError as e:
             print(e)
-        
-        self.sift.show_debug("matches")
+
         self.process_img(new_img)
 
         pass
@@ -98,6 +90,8 @@ class PlateID():
 
             for img in self.good_imgs:
                 self.perspective_transform_corners(img)
+                self.pub.publish(self.bridge.cv2_to_imgmsg(img.combined, encoding="passthrough"))
+
             
             self.max_area = 0
             self.good_imgs.clear()
@@ -120,10 +114,14 @@ class PlateID():
         hsv_mask = mask1
 
         # get the contours
-        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         # find the largest contour
-        largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
+        try:
+            largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
+        except IndexError:
+            return (None, 0)
+
 
         # plot all contours on screen
         # all_edges = np.zeros((hsv.shape[0], hsv.shape[1], 1),  dtype=np.uint8)
@@ -151,8 +149,8 @@ class PlateID():
 
         # get the are of the contour
         area = cv2.contourArea(largest_contour)
-
         return corners, area
+
 
     def perspective_transform_corners(self,plate_img):
 
@@ -161,9 +159,17 @@ class PlateID():
         warped = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (500,650))
         plate_img.warped = warped.copy()
         
-        plate_output = warped[500:650,:]
-        cv2.imshow('w', warped)
-        cv2.imshow('plate', plate_output)
+        plate_img.plate_crop = warped[500:650,:] # Necessary so that neural network gets the plate later
+        plate_img.car_id_crop = cv2.resize(warped[250:500,250:], (120,150))
+        
+        combined_img = 255*np.ones((150,620,3), dtype=np.uint8)
+        combined_img[:,0:500] = plate_img.plate_crop[:]
+        combined_img[:,500:620] = plate_img.car_id_crop[:]
+
+        plate_img.combined = combined_img
+
+        cv2.imshow('w', combined_img)
+
         cv2.waitKey(1)
 
         # white_box = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (500,200))
@@ -173,7 +179,13 @@ class PlateID():
 
         filename = plate_img.base_file_name + '_w.png'
         os.chdir('/home/fizzer/Downloads/PlateData')
-        cv2.imwrite(filename, plate_output)
+        cv2.imwrite(filename, plate_img.plate_crop)
+        cv2.waitKey(1)
+
+        filename_id = plate_img.base_file_name + '_i.png'
+        os.chdir('/home/fizzer/Downloads/CarIDData')
+        cv2.imwrite(filename_id, plate_img.car_id_crop)
+
         cv2.waitKey(1)
 
 

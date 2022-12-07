@@ -11,7 +11,12 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16, Float32
+from std_msgs.msg import String
 
+
+# initial plate
+initPlate = "Team20,silvertip,0,AA00"
+finalPlate = "Team20,silvertip,-1,AA00"
 
 # define constants
 white_threshold = 100
@@ -20,11 +25,6 @@ white_threshold = 100
 # create class to run the camera/movement loop
 class image_converter:
 
-    centerR_last = (640,719)
-    centerL_last = (640,719)
-    centAbR_last = (640,719)
-    centAbL_last = (640,719)
-
     # initiate the class
     def __init__(self):
         self.bridge = CvBridge()
@@ -32,9 +32,11 @@ class image_converter:
         self.image_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
         # publish to movement
         self.cmd_pub = rospy.Publisher('/R1/cmd_vel', Twist, queue_size=1)
+        # publish to plates
+        self.plate_pub = rospy.Publisher("/license_plate", String, queue_size=1)
 
         # state variable
-        self.state = "turn left"
+        self.state = "start timer"
         self.in_crosswalk = False
 
 
@@ -45,6 +47,13 @@ class image_converter:
         self.start_time = time.time()
         self.delay_time = 0
         self.last_time = time.time()
+        self.ive_had_enough = time.time()
+
+        self.centerR_last = (640,719)
+        self.centerL_last = (640,719)
+        self.centAbR_last = (640,719)
+        self.centAbL_last = (640,719)
+
 
 
     # the loop that will read from the camera and get the robot to move
@@ -105,11 +114,14 @@ class image_converter:
 
 
 
-
-
         # start of state machine
 
-        if self.state == "turn left":
+        if self.state == "start timer":
+            self.plate_pub.publish(initPlate)
+            time.sleep(1.5)
+            self.state = "turn left"
+
+        elif self.state == "turn left":
 
             # masking the hsv to filter for white lines
             lower = np.array([0,0,white_threshold])
@@ -212,9 +224,10 @@ class image_converter:
             delta_xL = centAbL[0] - centersL[0]
 
             # define driving constants
-            angMax = 5
-            maxSpeed = 0.45
-            turnReduction = 0.4
+            angMax = 4
+            maxSpeed = 0.43
+            turnReduction = 0.2
+
 
             # determine which line to follow and drive off that line
             if delta_xL < turn_diff and delta_xR > turn_diff:
@@ -243,7 +256,8 @@ class image_converter:
 
             # see if it has made a loop
             # if self.pedestrian_count == 2 and time.time() > self.detection_time + 3:
-            if self.pedestrian_count == 2 and self.in_crosswalk == False:
+            if self.pedestrian_count == 4 and self.in_crosswalk == False:
+
                 if red_center[1] > 375 and abs(red_center[0] - image_width/2) < 200:
                     self.state = "turn inside"
                     print("turn to inner")
@@ -290,8 +304,9 @@ class image_converter:
             # cv2.circle(line_mask, eCL, 16, (255,255,255), -1)
 
             # define driving constants
-            angMax = 5
-            maxSpeed = 0.6
+            angMax = 4
+            maxSpeed = 0.5
+
             turnReduction = 0.2
 
             # drive left
@@ -377,11 +392,18 @@ class image_converter:
             # drive the inner loop
             elif time.time() > self.detection_time + 5:
                 road_turn = self.PIDcontrol(cent_road[0]-image_width/2-80,angMax,image_width)
-                blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.3*angMax,image_width)
+                blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.2*angMax,image_width)
+
                 move.angular.z = road_turn-blue_turn
                 move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),-0.05)
             # wait for the car to pass by
             else:
+                move.linear.x = 0
+                move.angular.z = 0
+
+            # check for when it's time to stop the timer
+            if time.time() > self.ive_had_enough + 40:
+                self.plate_pub.publish(finalPlate)
                 move.linear.x = 0
                 move.angular.z = 0
 
@@ -428,6 +450,7 @@ class image_converter:
                     print("car")
                     cv2.circle(thresh_img, (640, 400), 49, (255,255,255), -1)
                     self.state = "inner loop"
+                    self.ive_had_enough = time.time()
                     self.pedestrian_count += 1
                     self.detection_time = time.time()
             self.img_val_last = img_val
@@ -490,7 +513,6 @@ class image_converter:
 def main(args):
     rospy.init_node('PID_motion', anonymous=True)
     ic = image_converter()
-    # ic.plate_pub.publish(test_plate)
     try:
         rospy.spin()
     except KeyboardInterrupt:
