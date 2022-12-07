@@ -19,7 +19,7 @@ from tensorflow.keras import models
 from std_msgs.msg import String
 
 PLATE_NET = '/home/fizzer/ros_ws/src/controller_pkg/src/node/plate_net'
-ID_NET = '/id_net'
+ID_NET = '/home/fizzer/ros_ws/src/controller_pkg/src/node/id_net'
 
 class NeuralNet():
     def __init__(self, model_path):
@@ -44,10 +44,12 @@ class NeuralNet():
 class NeuralNetManager():
     def __init__(self):
         self.plate_net = NeuralNet(PLATE_NET + '/e353_plate_model.h5')
-        # self.id_net = NeuralNet(ID_NET)
+        self.id_net = NeuralNet(ID_NET + '/e353_id_model.h5')
         self.sub = rospy.Subscriber("/plate_imgs",Image,self.callback)
         self.pub = rospy.Publisher("/license_plate", String)
         self.bridge = CvBridge()
+
+
 
     def callback(self, data):
         cv_img = self.bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
@@ -58,23 +60,22 @@ class NeuralNetManager():
             cv_img[:,0:120],
             cv_img[:,100:220],
             cv_img[:,280:400],
-            cv_img[:,380:500],
-            cv_img[:,500:650]
+            cv_img[:,380:500]
         ])
+        id_img = np.array([cv_img[:,500:650]])
 
         cv2.imshow("huh", letter_imgs[3])
         cv2.waitKey(1)
         
-        one_hots = self.plate_net.predictImages(letter_imgs)
-        print("Hmm: ")
-        print(one_hots)
+        plate_one_hots = self.plate_net.predictImages(letter_imgs)
+        id_one_hot = self.id_net.predictImages(id_img)
 
         plate_prediction = ""
-        for oh in one_hots[0:2]:
+        for oh in plate_one_hots[0:2]:
             plate_prediction += onehot_to_sym(oh, "letters")
-        for oh in one_hots[2:4]:
+        for oh in plate_one_hots[2:4]:
             plate_prediction += onehot_to_sym(oh, "nums")
-        id_prediction = onehot_to_sym(one_hots[4], "nums")
+        id_prediction = onehot_to_sym(id_one_hot[0], "nums")
 
         self.pub.publish(str('Team20,silvertip,' + str(id_prediction) + ',' + plate_prediction))
     
