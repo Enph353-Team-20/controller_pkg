@@ -27,8 +27,8 @@ class PlateImage():
 
     gp = None # Array of good keypoints
 
-    avg_x = None
-    avg_y = None
+    corners = None
+    area = None
 
     base_file_name = None
     guess = None # NN guess?
@@ -43,43 +43,28 @@ class PlateImage():
 class PlateID():
 
     def __init__(self, template):
-        self.sift = SiftProcessor(template, 'P finder')
-
-        debug_flags = {
-            "template_kp": False,
-            "input_kp": False,
-            "homogr": True,
-            "matches": True
-        }
-        self.sift.update_debug_flags(debug_flags)
 
         self.bridge = CvBridge()
         self.img_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
+        self.pub = rospy.Publisher("/plate_imgs", Image)
 
-        self.max_gp = 0
+        self.area_thresh = 10000
+        self.max_area = 0
         self.last_img_save = time.process_time()
 
         self.good_imgs = []
+        
 
     def callback(self, data):
 
         try:
             image_org = self.bridge.imgmsg_to_cv2(data, "bgr8")
-            # image_grey = cv2.cvtColor(image_org, cv2.COLOR_BGR2GRAY)
             new_img = PlateImage(image_org)
             new_img.base_file_name = 'img' + str(int(time.time_ns()))
         except CvBridgeError as e:
             print(e)
         
-        # input = cv2.resize(image_grey, (int(image_grey.shape[1]*0.5), int(image_grey.shape[0]*0.5)))
-        # self.image_org = cv2.resize(image_org, (int(image_org.shape[1]*0.5), int(image_org.shape[0]*0.5)))
-
-        self.sift.input_image(new_img.grey)
-        self.sift.sift_locate()
-        
         self.process_img(new_img)
-
-        self.sift.show_debug("matches")
 
         pass
 
@@ -90,111 +75,105 @@ class PlateID():
         Args:
             plate_img (PlateImage): A PlateImage image object
         """
-        good_points = self.sift.get_output()
+        plate_img.corners, plate_img.area = self.findCorners(plate_img)
 
         # If an image has more good points than the current maximum, replace the best previous image
-        if (len(good_points) >= self.max_gp):
-            self.max_gp = len(good_points)
-        if (len(good_points) >= self.max_gp and len(good_points) >= 2):
-            avg_x, avg_y = self.sift.centroid_of_points()
-            plate_img.avg_x = avg_x
-            plate_img.avg_y = avg_y
-            # self.good_imgs.clear()
+        if (plate_img.area >= self.max_area):
+            self.max_area = plate_img.area
+        if (plate_img.area >= self.max_area and plate_img.area > self.area_thresh and len(plate_img.corners) == 4):
             print("Appended")
+            self.good_imgs.clear()
             self.good_imgs.append(plate_img)
 
-        if (time.process_time() - self.last_img_save > 2.0) and (len(good_points) == 0 and self.max_gp >= 3):
+        if (time.process_time() - self.last_img_save > 2.0 and plate_img.area < self.area_thresh):
 
             for img in self.good_imgs:
-                left_bound = max(int(img.avg_x - max(img.avg_x,img.grey.shape[1]-img.avg_x)/img.grey.shape[1]*50), 0)
-                right_bound = min(int(img.avg_x + max(img.avg_x,img.grey.shape[1]-img.avg_x)/img.grey.shape[1]*90), img.grey.shape[1])
-                top_bound = max(int(img.avg_y - max(img.avg_y,img.grey.shape[0]-img.avg_y)/img.grey.shape[0]*90), 0)
-                bottom_bound = min(int(img.avg_y + max(img.avg_y,img.grey.shape[0]-img.avg_y)/img.grey.shape[0]*90), img.grey.shape[0])
-
-                img.cropped = img.raw[top_bound:bottom_bound,left_bound:right_bound,:]
-
-                # print([self.avg_x, self.avg_y, left_bound, right_bound, top_bound, bottom_bound])
-                # cv2.circle(img.cropped, (left_bound, top_bound), 5, (0,255,0), -1)
-                # cv2.circle(img.cropped, (right_bound, bottom_bound), 5, (0,255,0), -1)
-                
-                # os.chdir('/home/fizzer/Downloads/img_spam')
-                # cv2.imwrite(img.base_file_name + '_c.png', img.cropped)
-                # cv2.imshow("cropped", img.cropped)
-                # cv2.waitKey(1)
-
-                self.perspective_transform_plate(img)
+                self.perspective_transform_corners(img)
+                self.pub.publish(self.bridge.cv2_to_imgmsg(img.combined, encoding="passthrough"))
             
-            self.max_gp = 0
+            self.max_area = 0
             self.good_imgs.clear()
 
 
-    def perspective_transform_plate(self, plate_img):
-    
-        test_img_hsv = cv2.cvtColor(plate_img.cropped, cv2.COLOR_BGR2HSV)
+    def findCorners(self, plate_img):
 
+        # convert to hsv format
+        plate_img.cropped = plate_img.raw_fr[:,:]
+        hsv = cv2.cvtColor(plate_img.cropped[:], cv2.COLOR_BGR2HSV)
 
+        # filter the hsv (mask1 is white and mask2 is the license plate gray)
         lower1 = np.array([0,0,90])
-        upper1 = np.array([0,10,210])
-        mask1 = cv2.inRange(test_img_hsv,lower1,upper1)
-        lower2 = np.array([90,1,70])
-        upper2 = np.array([120,60,180])
-        mask2 = cv2.inRange(test_img_hsv,lower2,upper2)
-        hsv_mask = cv2.bitwise_or(mask1,mask2)
+        upper1 = np.array([0,0,210])
+        mask1 = cv2.inRange(hsv,lower1,upper1)
+        # lower2 = np.array([90,0,70])
+        # upper2 = np.array([120,60,180])
+        # mask2 = cv2.inRange(hsv,lower2,upper2)
+        # hsv_mask = cv2.bitwise_or(mask1,mask2)
+        hsv_mask = mask1
 
+        # get the contours
+        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        hsv_plate = cv2.bitwise_and(test_img_hsv, test_img_hsv, hsv_mask)
+        # find the largest contour
+        largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
 
-        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)
+        # plot all contours on screen
+        # all_edges = np.zeros((hsv.shape[0], hsv.shape[1], 1),  dtype=np.uint8)
+        # cv2.drawContours(all_edges, contours, -1, (255, 255, 255), 1)
+        # cv2.imshow('all edges', all_edges)
 
-        longest_contours = []
-        for c in contours:
-            if len(c) > 10:
-                longest_contours.append(c)
+        # plot the largest contour on screen
+        # edges = np.zeros((hsv.shape[0], hsv.shape[1], 1),  dtype=np.uint8)
+        # cv2.drawContours(edges, largest_contour, -1, (255, 255, 255), 1)
+        # cv2.imshow('edges', edges)
 
-        cnt = sorted(contours, key=cv2.contourArea, reverse=True)[0]
-            
-        edges_img = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
+        # get the corners of the largest contour
+        epsilon = 0.05*cv2.arcLength(largest_contour,True)
+        box = cv2.approxPolyDP(largest_contour, epsilon, True)
 
-        cv2.drawContours(edges_img, longest_contours, -1, (255,255,255), 1)
-        plate_img.edges = edges_img.copy()
-
-        cv2.drawContours(hsv_plate, longest_contours, -1, (255,255,255), 1)
-        # cv2.imshow('m', hsv_mask)
-        # cv2.imshow('c', hsv_plate)
-        # cv2.imshow('e', edges_img)
-
-        edges_large = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
-        cv2.drawContours(edges_large, cnt, -1, (255, 255, 255), 1)
-        cv2.imshow('edges large', edges_large)
-
-        epsilon = 0.05*cv2.arcLength(cnt,True)
-        box = cv2.approxPolyDP(cnt, epsilon, True)
-
-        edges_box = np.zeros((test_img_hsv.shape[0], test_img_hsv.shape[1], 1),  dtype=np.uint8)
-        cv2.drawContours(edges_box, box, -1, (255, 255, 255), 1)
-        # cv2.imshow('edges box', edges_box)
-
+        # see if there are 4 corners
+        if box.shape[0] != 4:
+            return (None, 0)
+        
+        # if there are 4 corners then sort them
         box2 = np.zeros((4,2))
         for i in range(4):
             box2[i,:] = box[i,0,:]
-        ordered_box = self.order_points(box2)
-            
+        corners = self.order_points(box2)
 
-        dest_pts = np.array([(0, 0), (150,0), (150, 450), (0,450)])
-        # matrix = cv2.getPerspectiveTransform(np.float32(corners), np.float32(dest_pts))
-        matrix = cv2.getPerspectiveTransform(np.float32(ordered_box), np.float32(dest_pts))
-        warped = cv2.warpPerspective(plate_img.cropped, matrix, (150,450))
+        # get the are of the contour
+        area = cv2.contourArea(largest_contour)
+
+        return corners, area
+
+    def perspective_transform_corners(self,plate_img):
+
+        dest_pts = np.array([(0, 0), (500,0), (500, 500), (0,500)])
+        matrix = cv2.getPerspectiveTransform(np.float32(plate_img.corners), np.float32(dest_pts))
+        warped = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (500,650))
         plate_img.warped = warped.copy()
         
-        plate_output = warped[300:400,:]
-        cv2.imshow('w', warped)
-        cv2.imshow('plate', plate_output)
-        # cv2.imshow('h2', hsv_plate)
+        plate_img.plate_crop = warped[500:650,:] # Necessary so that neural network gets the plate later
+        plate_img.car_id_crop = cv2.resize(warped[250:500,250:], (120,150))
+        
+        combined_img = 255*np.ones((150,620,3), dtype=np.uint8)
+        combined_img[:,0:500] = plate_img.plate_crop[:]
+        combined_img[:,500:620] = plate_img.car_id_crop[:]
+
+        plate_img.combined = combined_img
+
+        cv2.imshow('w', combined_img)
+        cv2.imshow('plate', plate_img.plate_crop)
         cv2.waitKey(1)
 
         filename = plate_img.base_file_name + '_w.png'
-        os.chdir('/home/fizzer/Downloads/img_spam')
-        cv2.imwrite(filename, warped)
+        os.chdir('/home/fizzer/Downloads/PlateData')
+        cv2.imwrite(filename, plate_img.plate_crop)
+        cv2.waitKey(1)
+
+        filename_id = plate_img.base_file_name + '_i.png'
+        os.chdir('/home/fizzer/Downloads/CarIDData')
+        cv2.imwrite(filename_id, plate_img.car_id_crop)
         cv2.waitKey(1)
 
 
