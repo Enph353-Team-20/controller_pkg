@@ -8,6 +8,7 @@ import rospy
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import time
+import cv2
 
 
 from collections import Counter
@@ -50,6 +51,8 @@ class NeuralNetManager():
 
     def callback(self, data):
         cv_img = self.bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
+        cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
+        cv_img = cv_img / 255
 
         letter_imgs = np.array([
             cv_img[:,0:120],
@@ -58,6 +61,9 @@ class NeuralNetManager():
             cv_img[:,380:500],
             cv_img[:,500:650]
         ])
+
+        cv2.imshow("huh", letter_imgs[3])
+        cv2.waitKey(1)
         
         one_hots = self.plate_net.predictImages(letter_imgs)
         print("Hmm: ")
