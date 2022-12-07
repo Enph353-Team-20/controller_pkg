@@ -56,7 +56,7 @@ class PlateID():
         self.bridge = CvBridge()
         self.img_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
 
-        self.area_thresh = 10000
+        self.area_thresh = 8000
         self.max_area = 0
         self.last_img_save = time.process_time()
 
@@ -120,7 +120,7 @@ class PlateID():
         hsv_mask = mask1
 
         # get the contours
-        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
         # find the largest contour
         largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
@@ -166,6 +166,11 @@ class PlateID():
         cv2.imshow('plate', plate_output)
         cv2.waitKey(1)
 
+        # white_box = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (500,200))
+        # thresh_white_box = self.filter_plates(white_box)
+        # cv2.imshow('white box', thresh_white_box)
+        # cv2.waitKey(1)
+
         filename = plate_img.base_file_name + '_w.png'
         os.chdir('/home/fizzer/Downloads/PlateData')
         cv2.imwrite(filename, plate_output)
@@ -183,6 +188,19 @@ class PlateID():
         rect[1] = pts[np.argmin(diff)]
         rect[3] = pts[np.argmax(diff)]
         return rect 
+
+    # def filter_plates(self,img):
+    #     hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    #     lower_blue = np.array([200,50,0])
+    #     upper_blue = np.array([250,200,255])
+    #     sky_filter = cv2.bitwise_not(cv2.inRange(hsv_img, lower_blue, upper_blue))
+    #     white_upper = np.array([0,0,20])
+    #     white_lower = np.array([0,0,255])
+    #     white_filter = cv2.inRange(hsv_img, white_lower, white_upper)
+    #     # ret, white_filter = cv2.threshold(img, 70, 255, cv2.THRESH_BINARY)
+    #     thresh_img = cv2.bitwise_and(sky_filter,white_filter)
+    #     # thresh_img = white_filter
+    #     return thresh_img
 
 
 def main(args):

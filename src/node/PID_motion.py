@@ -13,27 +13,12 @@ from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16, Float32
 
 
-# start time variable
-start_time = time.time()
-
 # define constants
 white_threshold = 100
 
 
 # create class to run the camera/movement loop
 class image_converter:
-
-    cXR_last = 640
-    cXL_last = 640
-    cXRa_last = 640
-    cXLa_last = 640
-    img_val_last = 97.8
-    detection_time = 0
-    start_time = time.time()
-    delay_time = 0
-    pedestrian_count = 0
-
-    last_time = time.time()
 
     centerR_last = (640,719)
     centerL_last = (640,719)
@@ -51,6 +36,16 @@ class image_converter:
         # state variable
         self.state = "turn left"
         self.in_crosswalk = False
+
+
+        # defining variables
+        self.img_val_last = 97.8
+        self.pedestrian_count = 0
+        self.detection_time = 0
+        self.start_time = time.time()
+        self.delay_time = 0
+        self.last_time = time.time()
+
 
     # the loop that will read from the camera and get the robot to move
     def callback(self,data):
@@ -92,6 +87,12 @@ class image_converter:
 
         # ideal slope of the lines to drive straight
         slope = 0.225
+
+
+
+
+
+
 
         # troubleshooting state
         if self.state == "do nothing":
@@ -211,8 +212,8 @@ class image_converter:
             delta_xL = centAbL[0] - centersL[0]
 
             # define driving constants
-            angMax = 4
-            maxSpeed = 0.5
+            angMax = 5
+            maxSpeed = 0.45
             turnReduction = 0.4
 
             # determine which line to follow and drive off that line
