@@ -402,7 +402,7 @@ class image_converter:
                 move.angular.z = 0
 
             # check for when it's time to stop the timer
-            if time.time() > self.ive_had_enough + 40:
+            if time.time() > self.ive_had_enough + 60:
                 self.plate_pub.publish(finalPlate)
                 move.linear.x = 0
                 move.angular.z = 0
@@ -421,7 +421,7 @@ class image_converter:
             # look for the pedestrian
             error_val = 0.5
             img_val = self.averageImageValue(gray,640,360,100)
-            if time.time()>self.delay_time+0.5:
+            if time.time()>self.delay_time+1:
                 if abs(img_val-self.img_val_last) > error_val or time.time() > self.delay_time+6:
                     print("pedestrian")
                     self.pedestrian_count += 1
@@ -445,7 +445,7 @@ class image_converter:
             # look for the car
             error_val = 1
             img_val = self.averageImageValue(gray,300,360,100)
-            if time.time()>self.delay_time+0.5:
+            if time.time()>self.delay_time+1:
                 if img_val > self.img_val_last+error_val or img_val<self.img_val_last-error_val:
                     print("car")
                     cv2.circle(thresh_img, (640, 400), 49, (255,255,255), -1)
