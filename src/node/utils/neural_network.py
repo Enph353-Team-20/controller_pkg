@@ -62,12 +62,12 @@ class NeuralNetManager():
             cv_img[:,500:650]
         ])
 
-        cv2.imshow("huh", letter_imgs[3])
-        cv2.waitKey(1)
+        # cv2.imshow("huh", letter_imgs[3])
+        # cv2.waitKey(1)
         
         one_hots = self.plate_net.predictImages(letter_imgs)
-        print("Hmm: ")
-        print(one_hots)
+        # print("Hmm: ")
+        # print(one_hots)
 
         plate_prediction = ""
         for oh in one_hots[0:2]:

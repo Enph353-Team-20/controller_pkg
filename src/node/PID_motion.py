@@ -212,9 +212,9 @@ class image_converter:
             delta_xL = centAbL[0] - centersL[0]
 
             # define driving constants
-            angMax = 5
-            maxSpeed = 0.45
-            turnReduction = 0.4
+            angMax = 4
+            maxSpeed = 0.4
+            turnReduction = 0.3
 
             # determine which line to follow and drive off that line
             if delta_xL < turn_diff and delta_xR > turn_diff:
@@ -243,7 +243,7 @@ class image_converter:
 
             # see if it has made a loop
             # if self.pedestrian_count == 2 and time.time() > self.detection_time + 3:
-            if self.pedestrian_count == 2 and self.in_crosswalk == False:
+            if self.pedestrian_count == 4 and self.in_crosswalk == False:
                 if red_center[1] > 375 and abs(red_center[0] - image_width/2) < 200:
                     self.state = "turn inside"
                     print("turn to inner")
@@ -290,8 +290,8 @@ class image_converter:
             # cv2.circle(line_mask, eCL, 16, (255,255,255), -1)
 
             # define driving constants
-            angMax = 5
-            maxSpeed = 0.6
+            angMax = 4
+            maxSpeed = 0.5
             turnReduction = 0.2
 
             # drive left
@@ -377,7 +377,7 @@ class image_converter:
             # drive the inner loop
             elif time.time() > self.detection_time + 5:
                 road_turn = self.PIDcontrol(cent_road[0]-image_width/2-80,angMax,image_width)
-                blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.3*angMax,image_width)
+                blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.4*angMax,image_width)
                 move.angular.z = road_turn-blue_turn
                 move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),-0.05)
             # wait for the car to pass by

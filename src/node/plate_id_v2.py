@@ -46,9 +46,9 @@ class PlateID():
 
         self.bridge = CvBridge()
         self.img_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
-        self.pub = rospy.Publisher("/plate_imgs", Image)
+        self.pub = rospy.Publisher("/plate_imgs", Image, queue_size=3)
 
-        self.area_thresh = 10000
+        self.area_thresh = 8000
         self.max_area = 0
         self.last_img_save = time.process_time()
 
@@ -115,7 +115,10 @@ class PlateID():
         contours, hierarchy = cv2.findContours(hsv_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
         # find the largest contour
-        largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
+        try:
+            largest_contour = sorted(contours, key=cv2.contourArea, reverse=True)[0]
+        except IndexError:
+            return (None, 0)
 
         # plot all contours on screen
         # all_edges = np.zeros((hsv.shape[0], hsv.shape[1], 1),  dtype=np.uint8)
