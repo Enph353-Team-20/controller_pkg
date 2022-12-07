@@ -13,7 +13,8 @@ for fn in filenames:
     img = cv2.imread(inpath + '/' + fn)
     cv2.imshow('Plate', img)
     cv2.waitKey(1)
-    correct_plate = input("Enter AA##: ")
+
+    correct_plate = input("Enter AA##: ").upper()
     new_name = outpath + '/' + "P_" + correct_plate + "_" + str(int(time())) + ".png"
     os.rename(inpath + '/' + fn, new_name)
 

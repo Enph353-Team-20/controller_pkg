@@ -49,6 +49,7 @@ class PlateID():
         self.pub = rospy.Publisher("/plate_imgs", Image, queue_size=3)
 
         self.area_thresh = 9000
+
         self.max_area = 0
         self.last_img_save = time.process_time()
 
@@ -63,7 +64,7 @@ class PlateID():
             new_img.base_file_name = 'img' + str(int(time.time_ns()))
         except CvBridgeError as e:
             print(e)
-        
+
         self.process_img(new_img)
 
         pass
@@ -90,6 +91,7 @@ class PlateID():
             for img in self.good_imgs:
                 self.perspective_transform_corners(img)
                 self.pub.publish(self.bridge.cv2_to_imgmsg(img.combined, encoding="passthrough"))
+
             
             self.max_area = 0
             self.good_imgs.clear()
@@ -120,6 +122,7 @@ class PlateID():
         except IndexError:
             return (None, 0)
 
+
         # plot all contours on screen
         # all_edges = np.zeros((hsv.shape[0], hsv.shape[1], 1),  dtype=np.uint8)
         # cv2.drawContours(all_edges, contours, -1, (255, 255, 255), 1)
@@ -146,8 +149,8 @@ class PlateID():
 
         # get the are of the contour
         area = cv2.contourArea(largest_contour)
-
         return corners, area
+
 
     def perspective_transform_corners(self,plate_img):
 
@@ -166,7 +169,13 @@ class PlateID():
         plate_img.combined = combined_img
 
         cv2.imshow('w', combined_img)
+
         cv2.waitKey(1)
+
+        # white_box = cv2.warpPerspective(plate_img.raw_fr[:], matrix, (500,200))
+        # thresh_white_box = self.filter_plates(white_box)
+        # cv2.imshow('white box', thresh_white_box)
+        # cv2.waitKey(1)
 
         filename = plate_img.base_file_name + '_w.png'
         os.chdir('/home/fizzer/Downloads/PlateData')
@@ -176,6 +185,7 @@ class PlateID():
         filename_id = plate_img.base_file_name + '_i.png'
         os.chdir('/home/fizzer/Downloads/CarIDData')
         cv2.imwrite(filename_id, plate_img.car_id_crop)
+
         cv2.waitKey(1)
 
 
@@ -190,6 +200,19 @@ class PlateID():
         rect[1] = pts[np.argmin(diff)]
         rect[3] = pts[np.argmax(diff)]
         return rect 
+
+    # def filter_plates(self,img):
+    #     hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    #     lower_blue = np.array([200,50,0])
+    #     upper_blue = np.array([250,200,255])
+    #     sky_filter = cv2.bitwise_not(cv2.inRange(hsv_img, lower_blue, upper_blue))
+    #     white_upper = np.array([0,0,20])
+    #     white_lower = np.array([0,0,255])
+    #     white_filter = cv2.inRange(hsv_img, white_lower, white_upper)
+    #     # ret, white_filter = cv2.threshold(img, 70, 255, cv2.THRESH_BINARY)
+    #     thresh_img = cv2.bitwise_and(sky_filter,white_filter)
+    #     # thresh_img = white_filter
+    #     return thresh_img
 
 
 def main(args):

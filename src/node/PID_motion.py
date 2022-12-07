@@ -55,6 +55,7 @@ class image_converter:
         self.centAbL_last = (640,719)
 
 
+
     # the loop that will read from the camera and get the robot to move
     def callback(self,data):
         """Analyzes robot camera image to determine location of the line on the ground.
@@ -227,6 +228,7 @@ class image_converter:
             maxSpeed = 0.43
             turnReduction = 0.2
 
+
             # determine which line to follow and drive off that line
             if delta_xL < turn_diff and delta_xR > turn_diff:
                 # drive right
@@ -255,6 +257,7 @@ class image_converter:
             # see if it has made a loop
             # if self.pedestrian_count == 2 and time.time() > self.detection_time + 3:
             if self.pedestrian_count == 4 and self.in_crosswalk == False:
+
                 if red_center[1] > 375 and abs(red_center[0] - image_width/2) < 200:
                     self.state = "turn inside"
                     print("turn to inner")
@@ -303,6 +306,7 @@ class image_converter:
             # define driving constants
             angMax = 4
             maxSpeed = 0.5
+
             turnReduction = 0.2
 
             # drive left
@@ -389,6 +393,7 @@ class image_converter:
             elif time.time() > self.detection_time + 5:
                 road_turn = self.PIDcontrol(cent_road[0]-image_width/2-80,angMax,image_width)
                 blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.2*angMax,image_width)
+
                 move.angular.z = road_turn-blue_turn
                 move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),-0.05)
             # wait for the car to pass by
