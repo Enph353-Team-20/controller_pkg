@@ -166,7 +166,6 @@ class PlateID():
         plate_img.combined = combined_img
 
         cv2.imshow('w', combined_img)
-        cv2.imshow('plate', plate_img.plate_crop)
         cv2.waitKey(1)
 
         filename = plate_img.base_file_name + '_w.png'

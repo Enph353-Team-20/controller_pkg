@@ -44,7 +44,7 @@ class NeuralNet():
 class NeuralNetManager():
     def __init__(self):
         self.plate_net = NeuralNet(PLATE_NET + '/e353_plate_model.h5')
-        # self.id_net = NeuralNet(ID_NET + '/e353_id_model.h5')
+        self.id_net = NeuralNet(ID_NET + '/e353_id_model.h5')
         self.sub = rospy.Subscriber("/plate_imgs",Image,self.callback)
         self.pub = rospy.Publisher("/license_plate", String,queue_size=1)
         self.bridge = CvBridge()
@@ -56,46 +56,47 @@ class NeuralNetManager():
     def callback(self, data):
         cv_img = self.bridge.imgmsg_to_cv2(data, desired_encoding="passthrough")
         cv_img = cv2.cvtColor(cv_img, cv2.COLOR_RGB2BGR)
-        cv_img = cv_img / 255
 
         # trying to get parking id working better
-        id_num = cv_img[:,500:650,:]
-        hsv_num = cv2.cvtColor(np.float32(id_num), cv2.COLOR_BGR2HSV)
+        # id_num = cv_img[:,500:650,:]
+        # hsv_num = cv2.cvtColor(np.float32(id_num), cv2.COLOR_BGR2HSV)
 
-        rows = id_num.shape[0]
-        cols = id_num.shape[1]
+        # rows = id_num.shape[0]
+        # cols = id_num.shape[1]
 
-        lower = np.array([0,0,0])
-        upper = np.array([0,0,40])
-        mask = cv2.inRange(hsv_num,lower,upper)
+        # lower = np.array([0,0,0])
+        # upper = np.array([0,0,40])
+        # mask = cv2.inRange(hsv_num,lower,upper)
 
-        for i in range(rows):
-            for j in range(cols):
-                if mask[i,j] > 0:
-                    id_num[i,j,2] = 0.3
-                else:
-                    id_num[i,j,:] = 0.95
+        # for i in range(rows):
+        #     for j in range(cols):
+        #         if mask[i,j] > 0:
+        #             id_num[i,j,2] = 0.3
+        #         else:
+        #             id_num[i,j,:] = 0.95
         
-        id_img = np.array([id_num])
+        # id_img = np.array([id_num])
+        # cv2.waitKey(1)
 
         # splice lisence plate images
         letter_imgs = np.array([
-            cv_img[:,0:120],
-            cv_img[:,100:220],
-            cv_img[:,280:400],
-            cv_img[:,380:500]
+            cv_img[:,0:120] / 255,
+            cv_img[:,100:220] / 255,
+            cv_img[:,280:400] / 255,
+            cv_img[:,380:500] / 255
         ])
         # get plate id image and convert to binary
-        # id_gray = np.float32(cv2.cvtColor(np.float32(cv_img[:,500:650,:]), cv2.COLOR_BGR2GRAY))
-        # ret, id_bin = cv2.threshold(id_gray, 25, 255, cv2.THRESH_BINARY)
-        # id_img = np.array([id_bin])
-
-        # cv2.imshow("huh", letter_imgs[3])
-        # cv2.waitKey(1)
+        id_gray = np.float32(cv2.cvtColor(np.float32(cv_img[:,500:650,:]), cv2.COLOR_BGR2GRAY)) / 255
+        ret, id_bin = cv2.threshold(id_gray, 0.25, 1, cv2.THRESH_BINARY)
+        id_img = np.array([id_bin]) 
+        
+        cv2.imshow('id_gr', id_gray)
+        cv2.imshow('id', id_bin)
+        cv2.waitKey(1)
         
         plate_one_hots = self.plate_net.predictImages(letter_imgs)
-        # id_one_hot = self.id_net.predictImages(id_img)
-        id_one_hot = self.plate_net.predictImages(id_img)
+        id_one_hot = self.id_net.predictImages(id_img)
+        # id_one_hot = self.plate_net.predictImages(id_img)
 
 
 
