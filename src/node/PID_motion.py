@@ -13,28 +13,12 @@ from geometry_msgs.msg import Twist
 from std_msgs.msg import Int16, Float32
 
 
-# start time variable
-start_time = time.time()
-
 # define constants
 white_threshold = 100
 
 
 # create class to run the camera/movement loop
 class image_converter:
-
-    cXR_last = 640
-    cXL_last = 640
-    cXRa_last = 640
-    cXLa_last = 640
-    img_val_last = 97.8
-    detection_time = 0
-    start_time = time.time()
-    delay_time = 0
-    pedestrian_count = 0
-
-    rotation = 0
-    last_time = time.time()
 
     centerR_last = (640,719)
     centerL_last = (640,719)
@@ -51,6 +35,17 @@ class image_converter:
 
         # state variable
         self.state = "turn left"
+        self.in_crosswalk = False
+
+
+        # defining variables
+        self.img_val_last = 97.8
+        self.pedestrian_count = 0
+        self.detection_time = 0
+        self.start_time = time.time()
+        self.delay_time = 0
+        self.last_time = time.time()
+
 
     # the loop that will read from the camera and get the robot to move
     def callback(self,data):
@@ -85,12 +80,6 @@ class image_converter:
         above_look = int(0.7*image_height)
         bottom_look = int(1*image_height)
 
-        # lower_car = np.array([0,0,50])
-        # upper_car = np.array([360,0,75])
-
-        # car_thresh = cv2.inRange(hsv, lower_car, upper_car)
-
-
         # masking the hsv to filter for white lines
         lower = np.array([0,0,white_threshold])
         upper = np.array([0,0,255])
@@ -98,6 +87,22 @@ class image_converter:
 
         # ideal slope of the lines to drive straight
         slope = 0.225
+
+
+
+
+
+
+
+        # troubleshooting state
+        if self.state == "do nothing":
+            move.linear.x = 0
+            move.angular.z = 0
+
+
+
+
+
 
 
 
@@ -111,8 +116,16 @@ class image_converter:
             upper = np.array([0,0,255])
             line_mask = cv2.inRange(hsv, lower, upper)
 
+            # getting the blue mask
+            low_blue = np.array([115, 50, 50])
+            high_blue = np.array([130, 255, 255])
+            blue_mask = cv2.inRange(hsv, low_blue, high_blue)
+
             # get left line centroid
             centersL = self.getCentroid(line_mask,(look_height, bottom_look), (0,int(image_width/2)))
+
+            # get blue centroid
+            blue_cent = self.getCentroid(blue_mask,(look_height, bottom_look), (0,image_width-1))
 
             # calculate ideal center of left line
             eCL = (int(slope*centersL[1] + 95), centersL[1])
@@ -132,9 +145,13 @@ class image_converter:
             move.angular.z = self.PIDcontrol(centersL[0]-eCL[0],angMax,image_width/2)
             move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),0)
 
-            # switch states after some time
-            if time.time() > self.start_time + 2:
+            # switch states after some time (comment in if the below if statement stops working)
+            # if time.time() > self.start_time + 2:
+            #     self.state = "drive"
+
+            if blue_cent[1] > 0 and blue_cent[0] > image_width/2:
                 self.state = "drive"
+                
 
 
 
@@ -195,8 +212,8 @@ class image_converter:
             delta_xL = centAbL[0] - centersL[0]
 
             # define driving constants
-            angMax = 4
-            maxSpeed = 0.5
+            angMax = 5
+            maxSpeed = 0.45
             turnReduction = 0.4
 
             # determine which line to follow and drive off that line
@@ -221,16 +238,23 @@ class image_converter:
             red_upper = np.array([6,255,255])
             red_mask = cv2.inRange(hsv,red_lower,red_upper)
 
+            # get the red center
+            red_center = self.getCentroid(red_mask,(0,image_height-1),(0,image_width-1))
+
             # see if it has made a loop
-            # if self.pedestrian_count > 1 and time.time() > self.detection_time+9:
-            if self.pedestrian_count == 2 and time.time() > self.detection_time+3:
-                self.state = "turn to inner"
-                self.delay_time = time.time()
+            # if self.pedestrian_count == 2 and time.time() > self.detection_time + 3:
+            if self.pedestrian_count == 2 and self.in_crosswalk == False:
+                if red_center[1] > 375 and abs(red_center[0] - image_width/2) < 200:
+                    self.state = "turn inside"
+                    print("turn to inner")
+
+            if red_center[1] < 300:
+                self.in_crosswalk = False
 
             # stop if the crosswalk is there
-            red_center = self.findCentroidY(red_mask)
-            if red_center > 550:
-                if time.time() > self.detection_time+3:
+            if red_center[1] > 550:
+                if self.in_crosswalk == False:
+                    self.in_crosswalk = True
                     self.state = "crosswalk"
                     self.delay_time = time.time()
 
@@ -238,67 +262,55 @@ class image_converter:
 
 
 
-
-            
-        elif self.state == "turn to inner":
+        elif self.state == "turn inside":
 
             # masking the hsv to filter for white lines
             lower = np.array([0,0,white_threshold])
-            upper = np.array([0,0,250])
+            upper = np.array([0,0,255])
             line_mask = cv2.inRange(hsv, lower, upper)
 
-            # masking for blue
+            # getting the blue mask
             low_blue = np.array([115, 50, 50])
             high_blue = np.array([130, 255, 255])
             blue_mask = cv2.inRange(hsv, low_blue, high_blue)
 
-            # blue center
-            blue_cent = self.getCentroid(blue_mask,(look_height,bottom_look),(0,image_width-1))
-            if blue_cent[0] == -1:
-                blue_cent = (1279,719)
-
-            # compute centroids
-            centersR = self.getCentroid(line_mask,(look_height, bottom_look),(int(image_width/2),int(image_width)-1))
+            # get left line centroid
             centersL = self.getCentroid(line_mask,(look_height, bottom_look), (0,int(image_width/2)))
-            centersC = (int((centersR[0]+centersL[0])/2), int((centersR[1]+centersL[1])/2))
 
-            # compute ideal centers
-            eCR = (int(-slope*centersR[1] + 1185), centersR[1])
+            # get blue centroid
+            blue_cent = self.getCentroid(blue_mask,(0, bottom_look), (0,image_width-1))
+
+            # calculate ideal center of left line
             eCL = (int(slope*centersL[1] + 95), centersL[1])
 
-            # plot centroids on the screen
-            cv2.circle(thresh_img, centersR, 16, (255,255,255), -1)
+            # plot centroid on troubleshooting screen
             cv2.circle(thresh_img, centersL, 16, (255,255,255), -1)
-            cv2.circle(thresh_img, centersC, 25, (255,255,255), -1)
 
-            # plot ideal centroids on screen
-            # cv2.circle(thresh_img, eCR, 16, (255,255,255), -1)
-            # cv2.circle(thresh_img, eCL, 16, (255,255,255), -1)
-
-            # define how steep a change is required for a turn to be detected
-            height_diff = 300
+            # plot ideal centroid on screen
+            # cv2.circle(line_mask, eCL, 16, (255,255,255), -1)
 
             # define driving constants
             angMax = 5
-            maxSpeed = 0.5
+            maxSpeed = 0.6
             turnReduction = 0.2
 
-            # determine which line to follow and drive off that line
-            if blue_cent[0] < centersC[0]:
-                # drive right
-                move.angular.z = self.PIDcontrol(centersR[0]-eCR[0],angMax,image_width/2)
-                cv2.putText(img=thresh_img, text="Right", org=(1200, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
-            else:
-                # drive left
-                move.angular.z = self.PIDcontrol(centersL[0]-eCL[0],angMax,image_width/2)
-                cv2.putText(img=thresh_img, text="Left", org=(20, 100), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=0.7, color=(255, 255, 255),thickness=1)
-
-            # determine linear speed based on how much we're truning
+            # drive left
+            move.angular.z = self.PIDcontrol(centersL[0]-eCL[0],angMax,image_width/2)
             move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),0)
 
-            if time.time() > self.delay_time + 5:
-                self.delay_time = time.time()
+
+            # filter for the red line
+            red_lower = np.array([0,200,0])
+            red_upper = np.array([6,255,255])
+            red_mask = cv2.inRange(hsv,red_lower,red_upper)
+
+            # get the red center
+            red_center = self.getCentroid(red_mask,(0,image_height-1),(0,image_width-1))
+
+            if red_center[0] == -1:
                 self.state = "car"
+                self.delay_time = time.time()
+
 
 
 
@@ -312,10 +324,12 @@ class image_converter:
             upper = np.array([0,0,255])
             line_mask = cv2.inRange(hsv, lower, upper)
 
+            # masking the hsv to filter for the road
             lower_road = np.array([0,0,80])
             upper_road = np.array([0,0,100])
             road_mask = cv2.inRange(hsv, lower_road, upper_road)
 
+            # get the center of the road
             cent_road = self.getCentroid(road_mask,(look_height,bottom_look), (0,image_width-1))
 
             # masking for blue
@@ -341,18 +355,6 @@ class image_converter:
                 self.centerL_last = centersL
             centersC = (int((centersR[0]+centersL[0])/2), int((centersR[1]+centersL[1])/2))
 
-            # compute above centroids
-            centAbR = self.getCentroid(line_mask,(above_look,look_height),(int(image_width/2),int(image_width)-1))
-            centAbL = self.getCentroid(line_mask,(above_look,look_height), (0,int(image_width/2)))
-            if centAbR[0] == -1:
-                centAbR = self.centAbR_last
-            else:
-                self.centAbR_last = centAbR
-            if centAbL[0] == -1:
-                centAbL = self.centAbL_last
-            else:
-                self.centAbL_last = centAbL
-
             # compute ideal centers
             eCR = (int(-slope*centersR[1] + 1185), centersR[1])
             eCL = (int(slope*centersL[1] + 95), centersL[1])
@@ -362,30 +364,23 @@ class image_converter:
             cv2.circle(thresh_img, centersL, 16, (255,255,255), -1)
             cv2.circle(thresh_img, centersC, 25, (255,255,255), -1)
 
-            # define how steep a change is required for a turn to be detected
-            turn_diff = 25
-
-            # find relative differences between above and below screens
-            delta_xR = centersR[0] - centAbR[0]
-            delta_xL = centAbL[0] - centersL[0]
-
             # define driving constants
             angMax = 5
             maxSpeed = 0.45
             turnReduction = 0.2
 
-            # turn left
+            # turn left after seeing the car
             if time.time() > self.detection_time + 1 and time.time() < self.detection_time + 5:
                 # drive left
                 move.angular.z = self.PIDcontrol(centersL[0]-eCL[0],angMax,image_width/2)
-                move.linear.x = max(maxSpeed - 0.5*turnReduction*abs(move.angular.z),-0.05)
-            # start driving a little after it sees the car so it doesn't run into it
+                move.linear.x = max(maxSpeed - 0.5*turnReduction*abs(move.angular.z),0)
+            # drive the inner loop
             elif time.time() > self.detection_time + 5:
-
-                road_turn = self.PIDcontrol(cent_road[0]-image_width/2-40,angMax,image_width)
+                road_turn = self.PIDcontrol(cent_road[0]-image_width/2-80,angMax,image_width)
                 blue_turn = self.PIDcontrol(blue_cent[0]-image_width/2,0.3*angMax,image_width)
                 move.angular.z = road_turn-blue_turn
                 move.linear.x = max(maxSpeed - turnReduction*abs(move.angular.z),-0.05)
+            # wait for the car to pass by
             else:
                 move.linear.x = 0
                 move.angular.z = 0
@@ -405,7 +400,7 @@ class image_converter:
             error_val = 0.5
             img_val = self.averageImageValue(gray,640,360,100)
             if time.time()>self.delay_time+0.5:
-                if img_val > self.img_val_last+error_val or img_val<self.img_val_last-error_val or time.time() > self.delay_time+6:
+                if abs(img_val-self.img_val_last) > error_val or time.time() > self.delay_time+6:
                     print("pedestrian")
                     self.pedestrian_count += 1
                     cv2.circle(thresh_img, (640, 400), 49, (255,255,255), -1)
@@ -426,9 +421,9 @@ class image_converter:
             move.linear.x = 0
 
             # look for the car
-            error_val = 0.5
-            img_val = self.averageImageValue(gray,640,360,100)
-            if time.time()>self.delay_time+1:
+            error_val = 1
+            img_val = self.averageImageValue(gray,300,360,100)
+            if time.time()>self.delay_time+0.5:
                 if img_val > self.img_val_last+error_val or img_val<self.img_val_last-error_val:
                     print("car")
                     cv2.circle(thresh_img, (640, 400), 49, (255,255,255), -1)
@@ -437,9 +432,6 @@ class image_converter:
                     self.detection_time = time.time()
             self.img_val_last = img_val
 
-        
-        self.rotation += move.angular.z*(time.time()-self.last_time)
-        self.last_time = time.time()
 
         
         # publish the move object
@@ -482,14 +474,6 @@ class image_converter:
         return -max_turn*error/(0.5*frame_width)
 
 
-    def findCentroidY(self, img):
-        M = cv2.moments(img)
-        try:
-            cY = int(M["m01"] / M["m00"])
-        except ZeroDivisionError:
-            cY = -1
-
-        return cY
 
     def averageImageValue(self, img, X, Y, size):
 
