@@ -48,7 +48,7 @@ class PlateID():
         self.img_sub = rospy.Subscriber("/R1/pi_camera/image_raw",Image,self.callback)
         self.pub = rospy.Publisher("/plate_imgs", Image, queue_size=3)
 
-        self.area_thresh = 9000
+        self.area_thresh = 8000
 
         self.max_area = 0
         self.last_img_save = time.process_time()
