@@ -10,6 +10,9 @@ Our team’s goal was to complete all the challenges laid out in the competition
 - Identify and avoid pedestrians
 - Reliably identify and return the license plates on all the vehicles
 
+A video of our robot in action can be viewed here:
+https://youtu.be/k3zzYlgzKM8
+
 This repository is a robot controller for ENPH353 final competition. Includes robot driving algorithm, license plate location and interface with neural network, and interface with simulation and robot operating system. 
 
 ![alt text](https://github.com/Enph353-Team-20/controller_pkg/blob/master/2022-12-15%20E353%20Architecture.drawio%20(1).png)
